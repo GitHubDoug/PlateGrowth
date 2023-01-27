@@ -1,0 +1,241 @@
+---
+title: "Plot and Analyze microbial plate growth data"
+author: "Maximilian Berthold, Douglas A. Campbell"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(purrr)
+library(lubridate)
+library(googledrive)
+library(googlesheets4)
+library(stringr)
+#library(here)
+
+```
+
+Set variables for project
+```{r project data}
+Project <- "BIOL3111"
+FileIDSingle <- "Ex440"
+
+#deauthorizes access to googlesheet
+gs4_deauth()
+
+MetaData <- read_sheet("https://docs.google.com/spreadsheets/d/1vuA18rGk_1h2rdSeEev53VSuqyVLP0JBinbDYp3fCag/edit#gid=0")
+
+DataFolder <- "ProcessData"
+DataFit <- "FitData"
+
+#grouping variables for rows & columns, and for nesting for fitting
+RowVar <- "FinalPO4_uM"
+RowVar2 <- "FinalKNO3_uM"
+ColVar <- "FinalGlucose_uM"
+ColVar2 <- "FinalCO3_uM"
+NestVar <- "FinalFe_uM"
+NestVar2 <- "CultureID"
+GroupVar <- "Group"
+
+#filtering variables
+ChlFl = c("440")
+Wavelength_nm <- c("680")
+nm_filter <- c("680")
+
+#fitting variable
+FitVar <- "RFU"
+
+
+```
+
+
+```{r load libraries}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(broom)
+library(knitr)
+library(minpack.lm)
+library(nlstools)
+library(nlsMicrobio)
+#library(OneR)
+
+```
+
+
+```{r read data, warning=FALSE}
+ImportGrowth <- readRDS(file = file.path(DataFolder,paste(Project,FileIDSingle, "GrowthLong.Rds", sep  = "_"),fsep = .Platform$file.sep))
+
+#https://stackoverflow.com/questions/64111558/passing-variables-into-the-names-glue-parameter-of-tidyrpivot-wider
+
+GrowthLong <- ImportGrowth %>%
+  filter(Wavelength %in% nm_filter) 
+
+
+GrowthLong <- GrowthLong %>%
+  group_by(!!sym(NestVar2)) %>%
+  mutate(logFitVarminFitVar = log(!!sym(FitVar)/min(!!sym(FitVar), na.rm = TRUE))) %>% #problem with log leads to NaN, when value is very small
+  ungroup()
+
+
+```
+
+
+```{r preplot}
+GrowthLong %>%
+  filter(Wavelength %in% Wavelength_nm) %>%
+  ggplot()+
+  geom_point(aes(x = E_hours, y = !!sym(FitVar))) +
+  facet_grid(cols = vars(!!sym(ColVar))) +
+    theme_bw() 
+       
+FitData <- GrowthLong %>%
+  group_by(!!sym(RowVar), !!sym(RowVar2), !!sym(NestVar),  !!sym(ColVar), !!sym(ColVar2), !!sym(GroupVar)) %>%
+  mutate(LagSeed = E_hours[which.min(!!sym(FitVar))])
+
+```
+
+
+Define equations as functions.
+x will be taken from 'E_days' when we run the fit.
+```{r logistic_eqn}
+LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
+}
+
+ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
+
+possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
+```
+
+
+Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
+This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+
+
+```{r treat growth specific}
+#run nesting by passing in values of variables set at top; 
+#!!sym(... allows nest to access the characters of the values passed in
+
+TreatNestSpecific <- FitData %>%
+  nest(data = -c(!!sym(RowVar), !!sym(RowVar2), !!sym(NestVar),  !!sym(ColVar), !!sym(ColVar2), !!sym(GroupVar), Wavelength, LagSeed))
+
+
+
+#extract nest-specific start, lower & upper setting by passing in "."
+TreatLogSpecific <- TreatNestSpecific %>% 
+    mutate(
+  FitLog = map(data, ~possibnlSLM(!!sym(FitVar) ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+                            data = .x, 
+                            start = list(
+                              Intercept = min(.[,FitVar], na.rm = TRUE), 
+                              Mu = (log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours), 
+                              Pmax = max(.[,FitVar], na.rm = TRUE)),
+                            control = list(maxiter = 1000)
+                            ,
+                            lower = c((min(.[,FitVar], na.rm = TRUE) * 0.05),
+                                      ((log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours)) *0.05,
+                                      ((max(.[,FitVar], na.rm = TRUE)) * 0.05)),
+                            upper = c((min(.[,FitVar], na.rm = TRUE) * 100),
+                                      ((log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours)) * 100,
+                                      ((max(.[,FitVar], na.rm = TRUE)) * 100))
+               )
+                ),
+  PredictLog = map(FitLog, augment),
+  TidiedLog = map(FitLog, tidy),
+  ParamLog = map(FitLog, glance)
+  ) %>%
+   mutate(
+    FitGompertz = (map(data, ~possibnlSLM(logFitVarminFitVar ~ ModGompertzEqn(x = E_hours, Lag, Gmu, Gmax),
+                                    data = .x,
+                                    start = list(Lag = LagSeed, Gmu = (log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours), Gmax = max(.[, "logFitVarminFitVar"], na.rm = TRUE)),
+                                    control = list(maxiter = 1000)
+                            ,
+                                    lower = c(0, ((log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours)) * 0.05, max(.[, "logFitVarminFitVar"], na.rm = TRUE) * 0.05),
+                                    upper = c(100, ((log(max(.[, FitVar], na.rm = TRUE)) - log(min(.[ FitVar], na.rm = TRUE)))/max(.$E_hours)) * 100, max(.[, "logFitVarminFitVar"], na.rm = TRUE) * 100)))),
+    PredictGompertz = map(FitGompertz, augment),
+    TidiedGompertz = map(FitGompertz, tidy),
+    ParamGompertz = map (FitGompertz, glance))
+
+TreatLogSpecificPredict <- TreatLogSpecific %>%
+  unnest(PredictLog)
+
+TreatLogSpecificCoeff <- TreatLogSpecific %>% 
+  unnest(TidiedLog) %>%
+  dplyr::select(c(!!sym(RowVar), !!sym(RowVar2), !!sym(NestVar),  !!sym(ColVar), !!sym(ColVar2), !!sym(GroupVar), Wavelength, term:p.value)) %>%
+  mutate(Wavelength = as.character(Wavelength))
+
+TreatGompertzSpecificPredict <- TreatLogSpecific %>%
+  unnest(PredictGompertz)
+
+TreatGompertzSpecificCoeff <- TreatLogSpecific %>% 
+  unnest(TidiedGompertz) %>%
+  dplyr::select(c(!!sym(RowVar), !!sym(RowVar2), !!sym(NestVar),  !!sym(ColVar), !!sym(ColVar2), !!sym(GroupVar), Wavelength, term:p.value)) %>%
+  mutate(Wavelength = as.character(Wavelength))
+```
+
+
+
+```{r}
+
+Groups = 5
+
+TreatLogSpecificPlot <- TreatLogSpecificPredict %>% 
+  filter(Group %in% Groups) %>%
+  filter(Wavelength %in% nm_filter,
+         FinalKNO3_uM == 40,
+         FinalPO4_uM == 80,
+         FinalCO3_uM == 80,
+         FinalFe_uM == 0.092,
+         FinalGlucose_uM == 80
+         ) %>%
+  ungroup() %>%
+  #pivot_longer(cols = c(FinalKNO3_uM:FinalGlucose_uM), names_to = "AddedNutrient", values_to = "NutrientConcentration") %>%
+  #filter(NutrientConcentration != 0) %>%
+  ggplot() +  
+  geom_line(aes(x = E_hours, y = .fitted), size = 0.5) +
+  geom_point(aes(x = E_hours, y = !!sym(FitVar)), size = 0.6) +
+  # facet_grid(cols = vars(AddedNutrient)
+  #            #, rows = vars(NutrientConcentration)
+  #            ) +
+  theme_bw() +
+  labs(y = FitVar,
+      title = "Treatment Growth, Specific Log",
+      legend.position="top",
+      legend.text=element_text(size=20),
+      legend.title =element_text(size=20),
+      caption = "Log")
+
+TreatLogSpecificPlot
+
+TreatGompertzLagSpecificPlot <- TreatGompertzSpecificPredict %>% 
+  filter(Wavelength %in% nm_filter) %>%
+  filter(Group %in% Groups) %>%
+  # filter(Wavelength %in% nm_filter,
+  #        FinalKNO3_uM == 400,
+  #        FinalPO4_uM == 8,
+  #        FinalCO3_uM == 80,
+  #        FinalFe_uM == 0.092,
+  #        FinalGlucose_uM == 80
+  #        ) %>%
+  ungroup() %>%
+  pivot_longer(cols = c(FinalKNO3_uM:FinalGlucose_uM), names_to = "AddedNutrient", values_to = "NutrientConcentration") %>%
+  filter(NutrientConcentration != 0) %>%
+  ggplot() +  
+  geom_line(aes(x = E_hours, y = .fitted), size = 0.5) +
+  geom_point(aes(x = E_hours, y = logFitVarminFitVar), size = 0.6) +
+  facet_grid(cols = vars(AddedNutrient), rows = vars(NutrientConcentration)) +
+  theme_bw() +
+  labs(y = expression(paste("log(RFU"[`680 nm`]*"/min RFU"[`680 nm`]*")")), x = "Elapsed time (hr)", title = "Modified Gompertz with Lag") +
+  theme( legend.position="top",
+      legend.text=element_text(size=20),
+      legend.title =element_text(size=20),
+      axis.text.x=element_text(angle=30, hjust = 1, size=7))
+
+TreatGompertzLagSpecificPlot
+```
+
+
