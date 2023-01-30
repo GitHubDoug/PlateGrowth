@@ -68,110 +68,70 @@ OD_data <- OD_files %>%
 
 ```
 
+```{r test spectra}
+SpectraTest <- OD_data %>%
+  filter(Wavelength >= 450,
+         Wavelength <= 700) %>%
+  filter(Filename == "RawData/TestPlate/20230125_1602_FriPlate_20.txt") %>%
+  ggplot() +
+  geom_point(aes(x = Wavelength, y = A1)) + 
+  facet_grid(cols = vars(Filename)) + 
+  theme_bw()
+
+ggsave(filename = file.path("Plots", "SpectraTest.png"), plot = SpectraTest)
+```
 
 ```{r tidy OD_data}
-# tidy up MD files
-
-#from filename
-
-OD_680 <- OD_data %>%
+OD_600 <- OD_data %>%
   select(-c("Temperature(¡C)", "Basic Endpoint Protocol", "...27")) %>%
   filter(Wavelength == 600) %>%
   separate(Filename, into = c("Path1", "Path2", "YYYYMMDD", "HHMM","Plate", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
   select(-c("Path1", "Path2", "txt")) %>%
   relocate(c("YYYYMMDD", "HHMM","Plate", "Temp_C")) %>%
-  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = FALSE) %>%
+  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = TRUE) %>%
   mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM))
 
 ```
-Group_by then calculate e_hours
+
+```{r E_hours}
+OD_600 <- OD_600 %>%
+  group_by(Plate, Wavelength) %>%
+  mutate(E_hours =  as.numeric((YYYYMMDD_HHMM - min(YYYYMMDD_HHMM))) / 3600, .after = YYYYMMDD_HHMM) %>%
+  ungroup()
+```
+
 
 ```{r OD_680 test plot}
-OD_680 %>% ggplot() +
-  geom_line(aes(x = YYYYMMDD_HHMM, y = A1)) + 
+OD_600 %>% ggplot() +
+  geom_line(aes(x = E_hours, y = A1)) + 
+  theme_bw()
+
+OD_600 %>% ggplot() +
+  geom_line(aes(x = E_hours, y = log(A1))) + 
   theme_bw()
 ```
 
 ```{r long format}
-OD_680_long <- OD_680 %>%
-  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength, Filename), names_to = "Well", values_to = "OD_680") %>%
+OD_600_long <- OD_600 %>%
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength, Filename), names_to = "Well", values_to = "OD_600") %>%
   separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
 
 ```
 
 ```{r OD_680 facet plot}
-OD_680_long %>% ggplot() +
-  geom_line((aes(x = YYYYMMDD_HHMM, y = OD_680))) + 
+OD_600_long %>% ggplot() +
+  geom_line((aes(x = E_hours, y = OD_600))) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  theme_bw()
+
+OD_600_long %>% ggplot() +
+  geom_line((aes(x = E_hours, y = log(OD_600)))) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
   theme_bw()
 ```
 
 
-```{r fluor growth plot}
-Wavelength_nm = 680
-Plates = c(104)
-Groups = 4
-Nutrients = c("FinalKNO3_uM", "FinalPO4_uM", "FinalCO3_uM", "FinalFe_uM", "FinalGlucose_uM")
-
-GrowthLong %>%
-  filter(Wavelength == Wavelength_nm) %>%
-  #filter(Group %in% Groups) %>%
-  #filter(Plate %in% Plates) %>%
-  #filter(AddedNutrient %in% Nutrients) %>%
-  #drop_na(NutrientConcentration) %>%
-  ggplot()+
-  geom_point(aes(x = E_hours, y = (RFU))) +
-  theme_bw() + 
-  labs(caption = paste(Wavelength_nm, "nm", "Group", Groups))
-
-
-```
-
-
 ```{r save GrowthLong, echo=FALSE}
-saveRDS(GrowthLong, file.path(DataOut, 
-paste(Project, file_id, "GrowthLong.Rds", sep = "_"), fsep = .Platform$file.sep))
+saveRDS(OD_600_long, file.path(DataOut, 
+paste(Project, "OD_600_long.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
-
-```{r alternative sorting}
-GrowthLongAlt <- ChlExMD %>% 
-  separate(col = filename, into = c("FP1", "Project", "ExWL", "EmWL", "date" ,"time", "Plate","txt"), sep = "([\\/\\_\\.\\:])", remove = FALSE) %>% 
-  filter(!str_detect(Wavelength, pattern = "~End"),
-         !str_detect(Wavelength, pattern = "Original Filename")) %>%
-  separate(col = ExWL, into = c("Ex","ExLambda"), sep = 2) %>%
-  separate(col = EmWL, into = c("Em", "EmLambda"), sep = 2) %>%
-  separate(col = Plate, into = c("cplate", "Plate"), sep = 5) %>%
-  select(-c(FP1, txt, cplate, X, 'Temperature..C.')) %>%
-  unite(datetime, date, time, remove = FALSE) %>%
-  mutate(datetime = ymd_hm(datetime),
-         Wavelength = as.numeric(Wavelength),
-         Plate = as.numeric(Plate)) %>%
-  pivot_longer(cols = -c(Wavelength, filename:Plate), names_to = "Well", values_to = "RFU") %>%
-  inner_join(MetaData) %>%
-  group_by(CultureID) %>% 
-  mutate(E_hours = as.numeric((datetime - datetime[1])/3600)) %>% 
-  ungroup() %>%
-  select(-c(KNO3_mL:Glucose_mL)) %>%
-  pivot_longer(cols = c(FinalKNO3_uM:FinalGlucose_uM), names_to = "AddedNutrient", values_to = "NutrientConcentration")
-
-Wavelength_nm = 680
-Plates = c(102)
-Groups = 2
-Nutrients = c("FinalKNO3_uM", "FinalPO4_uM", "FinalCO3_uM", "FinalFe_uM", "FinalGlucose_uM")
-
-GrowthLongAlt %>%
-  filter(Wavelength == Wavelength_nm) %>%
-  filter(Group %in% Groups) %>%
-  filter(Plate %in% Plates) %>%
-  filter(AddedNutrient %in% Nutrients) %>%
-  filter(NutrientConcentration != 0) %>%
-  ggplot()+
-  geom_point(aes(x = E_hours, y = (RFU), colour = as.factor(Well))) +
-  facet_grid(cols = vars(AddedNutrient),
-             rows = vars(NutrientConcentration)) + 
-  theme_bw() + 
-  labs(caption = paste(Wavelength_nm, "nm", "Group", Groups))
-
-
-```
-
