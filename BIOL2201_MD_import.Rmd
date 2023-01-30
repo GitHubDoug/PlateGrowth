@@ -32,8 +32,8 @@ gs4_deauth()
 MetaData <- read_sheet("https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0")
 
 #set variables for file import & processing
-DataPathMD <- file.path("RawData", fsep = .Platform$file.sep)
-file_id <- "Ex440"
+DataPathMD <- file.path("RawData", "TestPlate", fsep = .Platform$file.sep)
+file_id <- ".txt"
 
 DataOut <- "ProcessData"
 
@@ -41,20 +41,38 @@ FileEncodeMD <- "UTF-16LE"
 DelimiterMD <- "\t"
 HeaderRowsMD <- 17
 
-#list of chl excitation_files
-ChlFilesMD <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
+#list of files
+OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
 
+OD_files
 #test for duplicate file names in chl_files
-unique(duplicated(ChlFilesMD))
+unique(duplicated(OD_files))
+```
+```{r guess encoding}
+guess_encoding(file = OD_files[1])
+```
 
+```{read files}
 #read MD data using map_df
 read.delim_plus <- function(flnm, file_encode, delimiter, header_rows){read.delim(flnm, fileEncoding = file_encode, sep = delimiter,  skip = header_rows, row.names = NULL) %>% 
     mutate(filename = flnm)
 }
 
-ChlExMD <- ChlFilesMD %>% 
-  map_df(~read.delim_plus(flnm = ., file_encode = FileEncodeMD, delimiter = DelimiterMD, header_rows = HeaderRowsMD)) 
+#"id" parameter of read_delim might replace read_delim_plus
+#a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
+read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
+    mutate(Filename = flnm,
+           Cdatetime = ymd_hms(file.info(flnm)$ctime))
+  }
 
+
+OD_data <- OD_files %>% 
+  map_df(~read.delim_plus(flnm = ., file_encode = FileEncodeMD, delimiter = DelimiterMD, header_rows = HeaderRowsMD))
+
+```
+
+
+```{tidy OD_data}
 # tidy up MD files
 
 #from filename
