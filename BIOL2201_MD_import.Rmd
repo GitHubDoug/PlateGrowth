@@ -39,7 +39,7 @@ DataOut <- "ProcessData"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
-HeaderRowsMD <- 17
+HeaderRowsMD <- 2
 
 #list of files
 OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
@@ -47,54 +47,63 @@ OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
 OD_files
 #test for duplicate file names in chl_files
 unique(duplicated(OD_files))
+
 ```
 ```{r guess encoding}
 guess_encoding(file = OD_files[1])
+
 ```
 
-```{read files}
-#read MD data using map_df
-read.delim_plus <- function(flnm, file_encode, delimiter, header_rows){read.delim(flnm, fileEncoding = file_encode, sep = delimiter,  skip = header_rows, row.names = NULL) %>% 
-    mutate(filename = flnm)
-}
-
+```{r read files}
 #"id" parameter of read_delim might replace read_delim_plus
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
+# 
 read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
-    mutate(Filename = flnm))
+    mutate(Filename = flnm)
   }
 
 
-OD_data <- OD_files %>% 
-  map_df(~read.delim_plus(flnm = ., file_encode = FileEncodeMD, delimiter = DelimiterMD, header_rows = HeaderRowsMD))
+OD_data <- OD_files %>%
+  map_df(~read_delim_plus(flnm = ., delimiter = DelimiterMD,  headerrows = HeaderRowsMD,  fileencode = FileEncodeMD))
 
 ```
 
 
-```{tidy OD_data}
+```{r tidy OD_data}
 # tidy up MD files
 
 #from filename
-GrowthLong <- ChlExMD %>% 
-  separate(col = filename, into = c("FP1", "Project", "ExWL", "EmWL", "date" ,"time", "Plate","txt"), sep = "([\\/\\_\\.\\:])", remove = FALSE) %>% 
-  filter(!str_detect(Wavelength, pattern = "~End"),
-         !str_detect(Wavelength, pattern = "Original Filename")) %>%
-  separate(col = ExWL, into = c("Ex","ExLambda"), sep = 2) %>%
-  separate(col = EmWL, into = c("Em", "EmLambda"), sep = 2) %>%
-  separate(col = Plate, into = c("cplate", "Plate"), sep = 5) %>%
-  select(-c(FP1, txt, cplate, X, 'Temperature..C.')) %>%
-  unite(datetime, date, time, remove = FALSE) %>%
-  mutate(datetime = ymd_hm(datetime),
-         Wavelength = as.numeric(Wavelength),
-         Plate = as.numeric(Plate)) %>%
-  pivot_longer(cols = -c(Wavelength, filename:Plate), names_to = "Well", values_to = "RFU") %>%
-  inner_join(MetaData) %>%
-  group_by(CultureID) %>% 
-  mutate(E_hours = as.numeric((datetime - datetime[1])/3600)) %>% 
-  ungroup() #%>%
-  # select(-c(KNO3_mL:Glucose_mL)) %>%
-  # pivot_longer(cols = c(FinalKNO3_uM:FinalGlucose_uM), names_to = "AddedNutrient", values_to = "NutrientConcentration")
-  
+
+OD_680 <- OD_data %>%
+  select(-c("Temperature(¡C)", "Basic Endpoint Protocol", "...27")) %>%
+  filter(Wavelength == 600) %>%
+  separate(Filename, into = c("Path1", "Path2", "YYYYMMDD", "HHMM","Plate", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
+  select(-c("Path1", "Path2", "txt")) %>%
+  relocate(c("YYYYMMDD", "HHMM","Plate", "Temp_C")) %>%
+  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = FALSE) %>%
+  mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM))
+
+```
+Group_by then calculate e_hours
+
+```{r OD_680 test plot}
+OD_680 %>% ggplot() +
+  geom_line(aes(x = YYYYMMDD_HHMM, y = A1)) + 
+  theme_bw()
+```
+
+```{r long format}
+OD_680_long <- OD_680 %>%
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength, Filename), names_to = "Well", values_to = "OD_680") %>%
+  separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
+
+```
+
+```{r OD_680 facet plot}
+OD_680_long %>% ggplot() +
+  geom_line((aes(x = YYYYMMDD_HHMM, y = OD_680))) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  theme_bw()
 ```
 
 
@@ -124,7 +133,7 @@ saveRDS(GrowthLong, file.path(DataOut,
 paste(Project, file_id, "GrowthLong.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
-``` {r alternative sorting}
+```{r alternative sorting}
 GrowthLongAlt <- ChlExMD %>% 
   separate(col = filename, into = c("FP1", "Project", "ExWL", "EmWL", "date" ,"time", "Plate","txt"), sep = "([\\/\\_\\.\\:])", remove = FALSE) %>% 
   filter(!str_detect(Wavelength, pattern = "~End"),
