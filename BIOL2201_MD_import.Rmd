@@ -61,8 +61,7 @@ read.delim_plus <- function(flnm, file_encode, delimiter, header_rows){read.deli
 #"id" parameter of read_delim might replace read_delim_plus
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
 read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
-    mutate(Filename = flnm,
-           Cdatetime = ymd_hms(file.info(flnm)$ctime))
+    mutate(Filename = flnm))
   }
 
 
