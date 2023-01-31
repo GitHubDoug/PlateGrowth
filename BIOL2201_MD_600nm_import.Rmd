@@ -1,0 +1,186 @@
+---
+title: "Import microbial plate growth data"
+author: "Maximilian Berthold, Douglas A. Campbell"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+This .Rmd imports Molecular Device Fluorescence well plate files, generated using a single wavelength protocol, with one or more plates in the file.
+The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
+Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
+
+```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
+# libraries; Note check actual dependencies
+library(tidyverse) #core tidyverse packages
+library(lubridate) #tidyverse dates
+library(googledrive) #accessing googledrive
+library(googlesheets4) #accessing googlesheets
+library(minpack.lm) #curve fitting
+library(broom) #tidy model outputs
+
+```
+
+```{r variable names for file import & processing MOLECULAR DEVICES}
+Project <- "BIOL2201"
+
+#deauthorizes access to googlesheet
+gs4_deauth()
+
+#read contents of MetaData from GoogleSheet
+MetaData <- read_sheet("https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0")
+
+#set variables for file import & processing
+DataPathMD <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
+file_id <- ".txt"
+
+DataOut <- "ProcessData"
+
+FileEncodeMD <- "UTF-16LE" 
+DelimiterMD <- "\t"
+HeaderRowsMD <- 2
+
+#list of files
+OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
+
+OD_files
+#test for duplicate file names in chl_files
+unique(duplicated(OD_files))
+
+```
+
+```{r guess encoding}
+guess_encoding(file = OD_files[1])
+
+```
+
+```{r read files}
+#"id" parameter of read_delim might replace read_delim_plus
+#a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
+# 
+read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
+    mutate(Filename = flnm)
+  }
+
+
+OD_data <- OD_files %>%
+  map_df(~read_delim_plus(flnm = ., delimiter = DelimiterMD,  headerrows = HeaderRowsMD,  fileencode = FileEncodeMD))
+
+```
+
+```{r tidy OD_data}
+OD <- OD_data %>%
+  select(-c("...1", "Temperature(¡C)", "...27")) %>%
+  filter(!is.na(A1))  %>%
+  separate(Filename, into = c("Path1", "Path2", "DDMMYYYY", "HHMM","Group", "Bench", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
+  select(-c("Path1", "Path2", "txt")) %>%
+  relocate(c("DDMMYYYY", "HHMM","Group", "Bench", "Temp_C")) %>%
+  unite(DDMMYYYY_HHMM,  DDMMYYYY:HHMM, sep = "_", remove = TRUE) %>%
+  mutate(DDMMYYYY_HHMM = dmy_hm(DDMMYYYY_HHMM))
+
+#3 rows of data to average from each well measurement
+
+OD <- OD %>%
+  group_by(DDMMYYYY_HHMM, Group, Bench, Temp_C, Filename) %>%
+  summarize(across(A1:D6, mean)) %>%
+  ungroup()
+  
+```
+
+
+```{r E_hours}
+OD <- OD %>%
+  group_by(Group, Bench, Temp_C) %>%
+  mutate(E_hours =  as.numeric((DDMMYYYY_HHMM - min(DDMMYYYY_HHMM))) / 3600, .after = DDMMYYYY_HHMM) %>%
+  ungroup()
+```
+
+```{r OD test plot}
+OD %>% ggplot() +
+  geom_line(aes(x = E_hours, y = A1)) + 
+  theme_bw()
+
+```
+
+Merge OD with MetaData
+
+```{r long format}
+OD_long <- OD %>%
+  pivot_longer(cols = -c(DDMMYYYY_HHMM, E_hours, Group, Bench, Temp_C, Filename), names_to = "Well", values_to = "OD_600") %>%
+  separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
+
+```
+
+
+```{r logOD}
+OD_long <- OD_long %>%
+  mutate(logOD_600 = log(OD_600))
+```
+
+```{r OD facet plot}
+OD_long %>% ggplot() +
+  geom_point((aes(x = E_hours, y = OD_600))) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  theme_bw()
+
+OD_long %>% ggplot() +
+  geom_point((aes(x = E_hours, y = logOD_600))) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  theme_bw()
+```
+
+```{r save GrowthLong, echo=FALSE}
+saveRDS(OD_long, file.path(DataOut, 
+paste(Project, "OD_long.Rds", sep = "_"), fsep = .Platform$file.sep))
+```
+
+
+XXXX 
+Implement Growth Curve fits well by well.
+Define equations as functions.
+x will be taken from 'E_days' when we run the fit.
+```{r logistic_eqn}
+LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
+}
+
+ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
+
+possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
+```
+
+Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
+This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+```{r growth fits}
+OD_nest <- OD_long %>%
+  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD_600, logOD_600))
+
+OD_nest <- OD_nest %>% 
+  mutate(FitLog = map(data, ~possibnlSLM(OD_600 ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+                                         data = .x,
+                                         start = list(Intercept = min(.$OD_600, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD_600, na.rm = TRUE))
+                                         )
+  ),
+  PredictLog = map(FitLog, augment),
+  TidiedLog = map(FitLog, tidy),
+  ParamLog = map(FitLog, glance)
+  )
+
+OD_nest %>%
+  unnest(PredictLog) %>%
+  ggplot() + 
+  #geom_point(aes(x = E_hours, y = OD_600)) +
+  geom_point(aes(x = E_hours, y = OD_600)) + 
+  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`)) +
+  facet_grid(row = vars(Row), col = vars(Col)) +
+  theme_bw()
+
+OD_nest %>% 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) %>%
+  unnest(TidiedLog) %>%
+  select(-statistic) %>%
+  pivot_wider(names_from = term, values_from = c(estimate:p.value))
+
+```
+
