@@ -100,6 +100,7 @@ OD <- OD %>%
 ```{r OD test plot}
 OD %>% ggplot() +
   geom_line(aes(x = E_hours, y = A1)) + 
+  facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
   theme_bw()
 
 ```
@@ -120,12 +121,18 @@ OD_long <- OD_long %>%
 ```
 
 ```{r OD facet plot}
-OD_long %>% ggplot() +
+OD_long %>% 
+  filter(Bench == "B2", 
+         Temp_C == 20) %>%
+  ggplot() +
   geom_point((aes(x = E_hours, y = OD_600))) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
   theme_bw()
 
-OD_long %>% ggplot() +
+OD_long %>% 
+  filter(Bench == "B2", 
+         Temp_C == 20) %>%
+  ggplot() +
   geom_point((aes(x = E_hours, y = logOD_600))) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
   theme_bw()
@@ -137,7 +144,6 @@ paste(Project, "OD_long.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 
-XXXX 
 Implement Growth Curve fits well by well.
 Define equations as functions.
 x will be taken from 'E_days' when we run the fit.
@@ -154,18 +160,23 @@ Fit treatment specific logistic growth trajectories using nest purrr:map & broom
 This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_nest <- OD_long %>%
-  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD_600, logOD_600))
+  nest(data = c(DDMMYYYY_HHMM, Filename, E_hours, OD_600, logOD_600))
 
 OD_nest <- OD_nest %>% 
   mutate(FitLog = map(data, ~possibnlSLM(OD_600 ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
                                          data = .x,
                                          start = list(Intercept = min(.$OD_600, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD_600, na.rm = TRUE))
                                          )
-  ),
-  PredictLog = map(FitLog, augment),
-  TidiedLog = map(FitLog, tidy),
-  ParamLog = map(FitLog, glance)
-  )
+  ))
+  
+  
+  
+  # ,
+  # TidiedLog = map(FitLog, tidy),
+  # PredictLog = map(FitLog, augment),
+  # ,
+  # ParamLog = map(FitLog, glance)
+  # )
 
 OD_nest %>%
   unnest(PredictLog) %>%
