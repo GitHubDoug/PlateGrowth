@@ -123,7 +123,7 @@ OD_long <- OD_long %>%
 ```{r OD facet plot}
 OD_long %>% 
   filter(Bench == "B2", 
-         Temp_C == 20,
+         Temp_C == 37,
          Group == "TUES") %>%
   ggplot() +
   geom_point((aes(x = E_hours, y = OD_600))) + 
@@ -132,7 +132,7 @@ OD_long %>%
 
 OD_long %>% 
   filter(Bench == "B2", 
-         Temp_C == 20) %>%
+         Temp_C == 37) %>%
   ggplot() +
   geom_point((aes(x = E_hours, y = logOD_600))) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
