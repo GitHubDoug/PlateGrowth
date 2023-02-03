@@ -56,7 +56,7 @@ guess_encoding(file = OD_files[1])
 
 ```
 
-```{r read files}
+```{r read files, warning = FALSE, message = FALSE}
 #"id" parameter of read_delim might replace read_delim_plus
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
 # 
@@ -99,7 +99,7 @@ OD <- OD %>%
 
 ```{r OD test plot}
 OD %>% ggplot() +
-  geom_line(aes(x = E_hours, y = A1)) + 
+  geom_point(aes(x = E_hours, y = A1)) + 
   facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
   theme_bw()
 
@@ -122,12 +122,11 @@ OD_long <- OD_long %>%
 
 ```{r OD facet plot}
 OD_long %>% 
-  filter(Bench == "B2",
-         Temp_C == 37,
+  filter(Temp_C == 37,
          Group == "TUES") %>%
   ggplot() +
   geom_point((aes(x = E_hours, y = logOD_600, colour = Row))) + 
-  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  facet_grid(rows = vars(Bench), cols = vars(Col)) +
   theme_bw()
 ```
 
@@ -144,13 +143,11 @@ x will be taken from 'E_days' when we run the fit.
 LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
 }
 
-ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
-
 possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 ```
 
-Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
-This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+Fit logistic growth trajectories using nest purrr:map & broom::augment using start, lower & upper settings extracted from each nest on the fly.
+Extracting nest-specific start, lower & upper settings from each nest on the fly may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_nest <- OD_long %>%
   filter(Group == "TUES") %>%
@@ -171,14 +168,13 @@ OD_nest <- OD_nest %>%
   # )
 
 OD_nest %>%
-  filter(Bench == "B1", 
-         Temp_C == 20) %>%
+  filter(Bench == "B1",
+         Col %in% c(2,3,5)) %>%
   unnest(PredictLog) %>%
   ggplot() + 
-  #geom_point(aes(x = E_hours, y = OD_600)) +
   geom_point(aes(x = E_hours, y = OD_600)) + 
-  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`)) +
-  facet_grid(row = vars(Row), col = vars(Col)) +
+  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
+  facet_grid(col = vars(Col), rows = vars(Temp_C)) +
   theme_bw()
 
 Mu_est <- OD_nest %>% 
@@ -188,10 +184,45 @@ Mu_est <- OD_nest %>%
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
 Mu_est %>%
+  # filter(Bench == "B1",
+  #        Col %in% c(2,3,5)) %>%
   ggplot() + 
-  geom_point(aes(x = estimate_Mu, y = ExpInit_h, colour = Temp_C)) +
-  coord_cartesian(xlim = c(0, 0.1), ylim = c(0, 0.1)) +
+  geom_point(aes(x = estimate_Mu, y = ExpInit_h, size = estimate_Pmax)) +
+  #coord_fixed(ratio = 1, xlim = c(0, 0.2), ylim = c(0, 0.2)) +
+  facet_grid(cols = vars(Bench), rows = vars(Temp_C)) +
   theme_bw()
   
 ```
 
+
+Implement Growth Curve fits pool by pool of 4 rows together from one column.
+
+Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment.
+Using nest specific start, lower & upper settings extracted from each nest on the fly. may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+```{r growth fits}
+OD_pool_nest <- OD_long %>%
+  filter(Group == "TUES") %>%
+  nest(data = c(DDMMYYYY_HHMM, Well, Row, Filename, E_hours, OD_600, logOD_600))
+
+OD_pool_nest <- OD_pool_nest %>%
+  mutate(FitLog = map(data, ~possibnlSLM(OD_600 ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+                                         data = .x,
+                                         start = list(Intercept = min(.$OD_600, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD_600, na.rm = TRUE))
+                                         )
+  ),
+  TidiedLog = map(FitLog, tidy),
+  PredictLog = map(FitLog, augment)
+  )
+
+OD_pool_nest %>%
+  filter(Bench == "B1",
+         Col %in% c(2,3,5)) %>%
+  unnest(PredictLog) %>%
+  ggplot() + 
+  geom_point(aes(x = E_hours, y = OD_600)) + 
+  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
+  facet_grid(col = vars(Col), rows = vars(Temp_C)) +
+  theme_bw()
+
+  
+```
