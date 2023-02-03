@@ -252,5 +252,18 @@ OD_pool_nest %>%
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
+Mu_pool_est <- OD_pool_nest %>% 
+  dplyr::select(-c(data, FitLog, PredictLog)) %>%
+  unnest(TidiedLog) %>%
+  select(-statistic) %>%
+  pivot_wider(names_from = term, values_from = c(estimate:p.value))
+
+Mu_pool_est %>%
+  ggplot() +
+  geom_point(aes(x = MysteryID, y = estimate_Mu)) +
+  facet_grid(rows = vars(Temp_C)) +
+  coord_cartesian(ylim = c(0,0.2)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
+  theme_bw()
 
 ```
