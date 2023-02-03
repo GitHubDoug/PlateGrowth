@@ -248,7 +248,9 @@ OD_pool_nest %>%
   geom_point(aes(x = E_hours, y = OD_600)) + 
   geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
-  
+
 ```
