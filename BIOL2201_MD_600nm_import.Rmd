@@ -49,7 +49,9 @@ Load MetaData from GoogleSheet
 ```{r read metadata}
 gs4_deauth()
 
-MetaData <- read_sheet(MetaDataURL)
+MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
+MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
+MetaData <- rbind(MetaData20, MetaData37)
 
 #correct values and variable names in MetaData
 MetaData <- MetaData %>%
@@ -58,7 +60,8 @@ MetaData <- MetaData %>%
     Day =="WEDNESDAY" ~"WED",
     Day == "THURSDAY" ~ "THURS"
   ), .after = Day) %>%
-  mutate(MysteryID = as.character(MysteryID))
+  mutate(MysteryID = as.factor(as.character(MysteryID)))
+
 
 ```
 
@@ -197,7 +200,6 @@ OD_nest <- OD_nest %>%
   )
 
 OD_nest %>%
-  filter(Bench == "B1") %>%
   unnest(PredictLog) %>%
   ggplot() + 
   geom_point(aes(x = E_hours, y = OD_600)) + 
@@ -212,11 +214,9 @@ Mu_est <- OD_nest %>%
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
 Mu_est %>%
-  # filter(Bench == "B1",
-  #        Col %in% c(2,3,5)) %>%
   ggplot() + 
   geom_point(aes(x = estimate_Mu, y = ExpInit_h, size = estimate_Pmax)) +
-  #coord_fixed(ratio = 1, xlim = c(0, 0.2), ylim = c(0, 0.2)) +
+  coord_fixed(ratio = 1, xlim = c(0, 0.2), ylim = c(0, 0.2)) +
   facet_grid(cols = vars(Bench), rows = vars(Temp_C)) +
   theme_bw()
   
@@ -228,7 +228,7 @@ Implement Growth Curve fits pool by pool of 4 rows together from one column.
 Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment.
 Using nest specific start, lower & upper settings extracted from each nest on the fly. may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
-OD_pool_nest <- OD_long %>%
+OD_pool_nest <- OD_meta %>%
   filter(Group == "TUES") %>%
   nest(data = c(DDMMYYYY_HHMM, Well, Row, Filename, E_hours, OD_600, logOD_600))
 
@@ -243,13 +243,11 @@ OD_pool_nest <- OD_pool_nest %>%
   )
 
 OD_pool_nest %>%
-  filter(Bench == "B1",
-         Col %in% c(2,3,5)) %>%
   unnest(PredictLog) %>%
   ggplot() + 
   geom_point(aes(x = E_hours, y = OD_600)) + 
   geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
-  facet_grid(col = vars(Col), rows = vars(Temp_C)) +
+  facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
   theme_bw()
 
   
