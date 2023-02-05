@@ -25,12 +25,8 @@ library(broom) #tidy model outputs
 
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
+Day <- "THURS"
 
-#deauthorizes access to googlesheet
-gs4_deauth()
-
-#read contents of MetaData from GoogleSheet
-MetaData <- read_sheet("https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0")
 
 #set variables for file import & processing
 DataPathMD <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
@@ -47,7 +43,10 @@ MetaDataURL <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5q
 
 Load MetaData from GoogleSheet
 ```{r read metadata}
+#deauthorizes access to googlesheet
 gs4_deauth()
+
+#read contents of MetaData from GoogleSheet
 
 MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
 MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
@@ -144,8 +143,8 @@ OD_long <- OD_long %>%
 
 ```{r OD facet plot}
 OD_long %>% 
-  filter(Temp_C == 37,
-         Group == "TUES") %>%
+  filter(Temp_C == 20,
+         Group == Day) %>%
   ggplot() +
   geom_point((aes(x = E_hours, y = logOD_600, colour = Row))) + 
   facet_grid(rows = vars(Bench), cols = vars(Col)) +
@@ -185,7 +184,7 @@ Fit logistic growth trajectories using nest purrr:map & broom::augment using sta
 Extracting nest-specific start, lower & upper settings from each nest on the fly may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_nest <- OD_meta %>%
-  filter(Group == "TUES") %>%
+  filter(Group == "THURS") %>%
   nest(data = c(DDMMYYYY_HHMM, Filename, E_hours, OD_600, logOD_600))
 
 OD_nest <- OD_nest %>%
@@ -205,6 +204,7 @@ OD_nest %>%
   geom_point(aes(x = E_hours, y = OD_600)) + 
   geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
+  labs(title = sym(Day)) +
   theme_bw()
 
 Mu_est <- OD_nest %>% 
@@ -218,6 +218,7 @@ Mu_est %>%
   geom_point(aes(x = estimate_Mu, y = ExpInit_h, size = estimate_Pmax)) +
   coord_fixed(ratio = 1, xlim = c(0, 0.2), ylim = c(0, 0.2)) +
   facet_grid(cols = vars(Bench), rows = vars(Temp_C)) +
+  labs(title = sym(Day)) +
   theme_bw()
   
 ```
@@ -229,7 +230,7 @@ Fit treatment specific logistic growth trajectories using nest purrr:map & broom
 Using nest specific start, lower & upper settings extracted from each nest on the fly. may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_pool_nest <- OD_meta %>%
-  filter(Group == "TUES") %>%
+  filter(Group == "THURS") %>%
   nest(data = c(DDMMYYYY_HHMM, Well, Row, Filename, E_hours, OD_600, logOD_600))
 
 OD_pool_nest <- OD_pool_nest %>%
@@ -250,6 +251,7 @@ OD_pool_nest %>%
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
+  labs(title = sym(Day)) +
   theme_bw()
 
 Mu_pool_est <- OD_pool_nest %>% 
@@ -264,6 +266,7 @@ Mu_pool_est %>%
   facet_grid(rows = vars(Temp_C)) +
   coord_cartesian(ylim = c(0,0.2)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
+  labs(title = sym(Day)) +
   theme_bw()
 
 ```
