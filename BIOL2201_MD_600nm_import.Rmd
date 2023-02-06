@@ -25,7 +25,8 @@ library(broom) #tidy model outputs
 
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
-DayGroup <- "THURS"
+DayGroup = "THURS"
+DayBench = "B1"
 
 
 #set variables for file import & processing
@@ -181,16 +182,13 @@ paste(Project, "OD_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 DayGroup = "THURS"
 DayBench = "B1"
 
-DayGroupDayBenchData <- OD_meta %>%
+OD_meta %>%
   filter(Group == DayGroup) %>%
   filter(Bench == DayBench) %>%
-  select(-c(Row, Col)) %>%
-  pivot_wider(names_from = Well, values_from = c(OD_600, logOD_600))
-  
-  
-  
-  
-write_csv(., file = file.path("ProcessData", paste(DayGroup,"_", Bench, "_", "OD600", ".csv", sep = "")))
+  select(-c(Day, Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  arrange(Temp_C) %>%
+  write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", Bench, "_OD600", ".csv", sep = "")))
 ```
 
 Implement Growth Curve fits well by well.
@@ -207,7 +205,8 @@ Fit logistic growth trajectories using nest purrr:map & broom::augment using sta
 Extracting nest-specific start, lower & upper settings from each nest on the fly may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_nest <- OD_meta %>%
-  filter(Group == "THURS") %>%
+  filter(Group == DayGroup) %>%
+  filter(Bench == DayBench) %>%
   nest(data = c(DDMMYYYY_HHMM, Filename, E_hours, OD_600, logOD_600))
 
 OD_nest <- OD_nest %>%
@@ -225,11 +224,11 @@ OD_nest %>%
   unnest(PredictLog) %>%
   ggplot() + 
   geom_point(aes(x = E_hours, y = OD_600)) + 
-  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
-  facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
+  geom_line(aes(x = E_hours, y =  `.fitted`)) +
+  facet_grid(col = vars(MysteryID, Well), rows = vars(Temp_C)) +
    scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
-  labs(title = sym(Day)) +
+  labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
   theme_bw()
 
 Mu_est <- OD_nest %>% 
@@ -239,11 +238,30 @@ Mu_est <- OD_nest %>%
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
 Mu_est %>%
+  ggplot() +
+  geom_point(aes(x = MysteryID, y = estimate_Mu)) +
+  geom_errorbar(aes(x = MysteryID, ymin = estimate_Mu - std.error_Mu,  ymax = estimate_Mu + std.error_Mu)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  facet_grid(rows = vars(Temp_C)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
+   labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
+  theme_bw()
+
+Mu_est %>%
+  ggplot() +
+  geom_point(aes(x = MysteryID, y = ExpInit_h)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  facet_grid(rows = vars(Temp_C)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
+   labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
+  theme_bw()
+
+Mu_est %>%
   ggplot() + 
   geom_point(aes(x = estimate_Mu, y = ExpInit_h, size = estimate_Pmax)) +
   coord_fixed(ratio = 1, xlim = c(0, 0.2), ylim = c(0, 0.2)) +
   facet_grid(cols = vars(Bench), rows = vars(Temp_C)) +
-  labs(title = sym(Day)) +
+  labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
   theme_bw()
   
 ```
@@ -256,6 +274,7 @@ Using nest specific start, lower & upper settings extracted from each nest on th
 ```{r growth fits}
 OD_pool_nest <- OD_meta %>%
   filter(Group == DayGroup) %>%
+  filter(Bench == DayBench) %>%
   nest(data = c(DDMMYYYY_HHMM, Well, Row, Filename, E_hours, OD_600, logOD_600))
 
 OD_pool_nest <- OD_pool_nest %>%
@@ -272,11 +291,12 @@ OD_pool_nest %>%
   unnest(PredictLog) %>%
   ggplot() + 
   geom_point(aes(x = E_hours, y = OD_600)) + 
-  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
+    geom_line(aes(x = E_hours, y = `.fitted`)) + 
+ # geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
-  labs(title = sym(DayGroup)) +
+  labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
   theme_bw()
 
 Mu_pool_est <- OD_pool_nest %>% 
@@ -288,10 +308,13 @@ Mu_pool_est <- OD_pool_nest %>%
 Mu_pool_est %>%
   ggplot() +
   geom_point(aes(x = MysteryID, y = estimate_Mu)) +
+  geom_errorbar(aes(x = MysteryID, ymin = estimate_Mu - std.error_Mu,  ymax = estimate_Mu + std.error_Mu)) +
+  geom_hline(yintercept = 0, linetype = "dotted") +
   facet_grid(rows = vars(Temp_C)) +
-  coord_cartesian(ylim = c(0,0.2)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
-  labs(title = sym(DayGroup)) +
+   labs(title = sym(DayGroup), subtitle = sym(DayBench)) +
   theme_bw()
 
 ```
+
+# Results & Discussion
