@@ -1,5 +1,5 @@
 ---
-title: "Import microbial plate growth data"
+title: "Import and fit microbial plate growth data"
 author: "Maximilian Berthold, Douglas A. Campbell"
 date: "`r format(Sys.Date())`"
 output:
@@ -188,7 +188,7 @@ OD_meta %>%
   select(-c(Day, Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
   arrange(Temp_C) %>%
-  write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", Bench, "_OD600", ".csv", sep = "")))
+  write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
 ```
 
 Implement Growth Curve fits well by well.
@@ -203,7 +203,7 @@ possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 
 Fit logistic growth trajectories using nest purrr:map & broom::augment using start, lower & upper settings extracted from each nest on the fly.
 Extracting nest-specific start, lower & upper settings from each nest on the fly may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
-```{r growth fits}
+```{r growth well fits}
 OD_nest <- OD_meta %>%
   filter(Group == DayGroup) %>%
   filter(Bench == DayBench) %>%
@@ -271,7 +271,7 @@ Implement Growth Curve fits pool by pool of 4 rows together from one column.
 
 Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment.
 Using nest specific start, lower & upper settings extracted from each nest on the fly. may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
-```{r growth fits}
+```{r growth pool fits}
 OD_pool_nest <- OD_meta %>%
   filter(Group == DayGroup) %>%
   filter(Bench == DayBench) %>%
