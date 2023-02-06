@@ -25,7 +25,7 @@ library(broom) #tidy model outputs
 
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
-Day <- "THURS"
+DayGroup <- "THURS"
 
 
 #set variables for file import & processing
@@ -52,6 +52,8 @@ MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
 MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
 MetaData <- rbind(MetaData20, MetaData37)
 
+rm(MetaData20, MetaData37)
+
 #correct values and variable names in MetaData
 MetaData <- MetaData %>%
   mutate(Group = case_when(
@@ -59,7 +61,8 @@ MetaData <- MetaData %>%
     Day =="WEDNESDAY" ~"WED",
     Day == "THURSDAY" ~ "THURS"
   ), .after = Day) %>%
-  mutate(MysteryID = as.factor(as.character(MysteryID)))
+  mutate(MysteryID = as.factor(as.character(MysteryID))) %>%
+  select(-c("Initials"))
 
 
 ```
@@ -122,6 +125,8 @@ OD <- OD %>%
 OD %>% ggplot() +
   geom_point(aes(x = E_hours, y = A1)) + 
   facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
+   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Group"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
 ```
@@ -144,10 +149,13 @@ OD_long <- OD_long %>%
 ```{r OD facet plot}
 OD_long %>% 
   filter(Temp_C == 20,
-         Group == Day) %>%
+         Group == DayGroup) %>%
   ggplot() +
   geom_point((aes(x = E_hours, y = logOD_600, colour = Row))) + 
   facet_grid(rows = vars(Bench), cols = vars(Col)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Column", breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
+  labs(title = DayGroup) +
   theme_bw()
 ```
 
@@ -169,6 +177,21 @@ saveRDS(OD_meta, file.path(DataOut,
 paste(Project, "OD_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
+```{r export bench specific csv}
+DayGroup = "THURS"
+DayBench = "B1"
+
+DayGroupDayBenchData <- OD_meta %>%
+  filter(Group == DayGroup) %>%
+  filter(Bench == DayBench) %>%
+  select(-c(Row, Col)) %>%
+  pivot_wider(names_from = Well, values_from = c(OD_600, logOD_600))
+  
+  
+  
+  
+write_csv(., file = file.path("ProcessData", paste(DayGroup,"_", Bench, "_", "OD600", ".csv", sep = "")))
+```
 
 Implement Growth Curve fits well by well.
 Define equations as functions.
@@ -204,6 +227,8 @@ OD_nest %>%
   geom_point(aes(x = E_hours, y = OD_600)) + 
   geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`), colour = "grey", fill = "grey") +
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
+   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
   labs(title = sym(Day)) +
   theme_bw()
 
@@ -230,7 +255,7 @@ Fit treatment specific logistic growth trajectories using nest purrr:map & broom
 Using nest specific start, lower & upper settings extracted from each nest on the fly. may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
 OD_pool_nest <- OD_meta %>%
-  filter(Group == "THURS") %>%
+  filter(Group == DayGroup) %>%
   nest(data = c(DDMMYYYY_HHMM, Well, Row, Filename, E_hours, OD_600, logOD_600))
 
 OD_pool_nest <- OD_pool_nest %>%
@@ -251,7 +276,7 @@ OD_pool_nest %>%
   facet_grid(col = vars(MysteryID), rows = vars(Temp_C)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("MysteryID"), breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
-  labs(title = sym(Day)) +
+  labs(title = sym(DayGroup)) +
   theme_bw()
 
 Mu_pool_est <- OD_pool_nest %>% 
@@ -266,7 +291,7 @@ Mu_pool_est %>%
   facet_grid(rows = vars(Temp_C)) +
   coord_cartesian(ylim = c(0,0.2)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Temp_c"), breaks = NULL, labels = NULL)) +
-  labs(title = sym(Day)) +
+  labs(title = sym(DayGroup)) +
   theme_bw()
 
 ```
