@@ -130,6 +130,13 @@ OD %>% ggplot() +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Group"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
+OD %>% ggplot() +
+  geom_point(aes(x = E_hours, y = A1)) + 
+  facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
+   scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Group"), breaks = NULL, labels = NULL)) +
+  theme_bw()
+
 ```
 
 
@@ -158,6 +165,19 @@ OD_long %>%
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
   labs(title = DayGroup) +
   theme_bw()
+
+OD_long %>% 
+  filter(Temp_C == 20,
+         Group == DayGroup,
+         Bench == "B1") %>%
+  ggplot() +
+  geom_point((aes(x = E_hours, y = OD_600))) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = " Plate Column", breaks = NULL, labels = NULL)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Plate Row"), breaks = NULL, labels = NULL)) +
+  theme_bw()
+
+ggsave(filename = file.path("Plots", "WellPlateExample.png") )
 ```
 
 Merge OD_long with MetaData
