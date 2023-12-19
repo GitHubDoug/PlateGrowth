@@ -209,6 +209,25 @@ OD_meta %>%
   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
   arrange(Temp_C) %>%
   write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
+
+
+
+  #working on bulk write of nested dataframe to .csv, instead of filtering
+  
+  # test <- 
+  #   
+  #   OD_meta |>
+  # select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  # pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  # arrange(Temp_C) %>%
+  # nest(.by = c(Group)) %>%
+  # walk2(.$data, .$Group, ~ write_csv(.x, file = paste0(.y, ".csv")))  
+  # 
+  # 
+  # walk2(test$data, test$Bench, ~ write_csv(.x, file = paste0(.y, ".csv")))
+
+
+  
 ```
 
 Implement Growth Curve fits well by well.
