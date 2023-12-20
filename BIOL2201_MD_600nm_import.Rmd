@@ -210,15 +210,12 @@ OD_meta %>%
   arrange(Temp_C) %>%
   write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
 
-
-
-  #working on bulk write of nested dataframe to .csv, instead of filtering
+  #bulk write of nested dataframe to .csv, instead of filtering
   #https://community.rstudio.com/t/odd-behavior-with-walk2-and-pipe/5543/5
 #need to use %>% pipe, not |> pipe
 
-#  test <- 
-    
-    OD_meta %>%
+#walk2 works, pwalk does not, so create GroupBench variable for grouping, instead of grouping by Group and Bench (preferred)    
+  OD_meta %>%
   select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
   arrange(Temp_C) %>%
@@ -227,7 +224,7 @@ OD_meta %>%
   {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path(DataOut, str_c(.y, ".csv"))))}
 
 
-  walk2(.x = test$data, .y = test$Group, ~ write_csv(.x, file = file.path(DataOut, str_c(.y, ".csv"))))
+ # walk2(.x = test$data, .y = test$Group, ~ write_csv(.x, file = file.path(DataOut, str_c(.y, ".csv"))))
 
 #  https://stackoverflow.com/questions/49265737/applying-purrrwalk2-to-a-data-frame-of-data-frames-at-the-end-of-a-pipe
   
@@ -242,6 +239,58 @@ OD_meta %>%
   # 
   # pwalk(list(data = test2$data, group = test2$Group, bench = test2$Bench), ~ write_csv(data, file = str_c(group, bench, ".csv"))) 
 ```
+
+```{r export GroupBench data to googlesheets}
+TestSheet <- OD_meta %>%
+  filter(Group == DayGroup) %>%
+  filter(Bench == DayBench) %>%
+  select(-c(Day, Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  arrange(Temp_C) %>%
+  write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
+
+# gs4_auth()
+# gs4_create("BIOL2201_2024_GrowthData")
+# id <- googledrive::drive_get("BIOL2201_2024_GrowthData")
+
+#https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0
+
+sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = "TestSheet")
+
+#Starts but fails; maybe filter out superfluous content b/f write to GoogleSheets; trying to send data to Googlesheets faster than write quota
+ OD_meta %>%
+  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  arrange(Temp_C) %>%
+  unite("Group_Bench", Group, Bench, sep = "_") %>%
+  nest(.by = c(Group_Bench)) %>%
+   {walk2(.x = .$data, .y = .$Group_Bench, ~ sheet_write(.x, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = .y))}
+ 
+# Show in New Window
+# ✔ Writing to BIOL2201_GrowthData_2024.
+# ✔ Writing to sheet TUES_B3.
+# Error in `map2()`:
+# ℹ In index: 1.
+# Caused by error in `response_as_json()`:
+# ! Expected content type application/json, not text/html.
+# • <!DOCTYPE html> <html lang=en> <meta charset=utf-8> <meta name=viewport
+#   content="initial-scale=1, minimum-scale=1, width=device-width"> <title>Error 408 (Request
+#   Timeout)!!1</title> <style>...
+# Backtrace:
+#   1. ... %>% ...
+#   2. purrr::walk2(...)
+#   3. purrr::map2(.x, .y, .f, ..., .progress = .progress)
+#   4. purrr:::map2_("list", .x, .y, .f, ..., .progress = .progress)
+#   8. .f(.x[[i]], .y[[i]], ...)
+#      ...
+#  11. gargle::request_retry(x, ..., encode = encode, user_agent = gs4_user_agent())
+#  12. gargle:::backoff(tries_made, resp, base = b)
+#  13. gargle:::sheets_per_user_quota_exhaustion(resp)
+#  14. gargle::gargle_error_message(resp)
+#  15. gargle::response_as_json(resp)
+#  
+```
+
 
 Implement Growth Curve fits well by well.
 Define equations as functions.
