@@ -34,6 +34,7 @@ DataPathMD <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
 file_id <- ".txt"
 
 DataOut <- "ProcessData"
+DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/StudentData"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
@@ -258,6 +259,10 @@ TestSheet <- OD_meta %>%
 sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = "TestSheet")
 
 #Starts but fails; maybe filter out superfluous content b/f write to GoogleSheets; trying to send data to Googlesheets faster than write quota
+
+# https://stackoverflow.com/questions/66186332/googlesheets-quota-limit-issues-possible-failure-to-use-api-key
+
+
  OD_meta %>%
   select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
@@ -291,6 +296,16 @@ sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph
 #  
 ```
 
+```{r export .csv to shared OneDrive folder}
+  OD_meta %>%
+  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  arrange(Temp_C) %>%
+  unite("Group_Bench", Group, Bench, sep = "_") %>%
+  nest(.by = c(Group_Bench)) %>%
+  {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
 
 Implement Growth Curve fits well by well.
 Define equations as functions.
