@@ -242,13 +242,13 @@ OD_meta %>%
 ```
 
 ```{r export GroupBench data to googlesheets}
-TestSheet <- OD_meta %>%
-  filter(Group == DayGroup) %>%
-  filter(Bench == DayBench) %>%
-  select(-c(Day, Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
-  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
-  arrange(Temp_C) %>%
-  write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
+# TestSheet <- OD_meta %>%
+#   filter(Group == DayGroup) %>%
+#   filter(Bench == DayBench) %>%
+#   select(-c(Day, Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+#   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+#   arrange(Temp_C) %>%
+#   write_csv(., file = file.path("ProcessData", paste(Project, "_", DayGroup,"_", DayBench, "_OD600", ".csv", sep = "")))
 
 # gs4_auth()
 # gs4_create("BIOL2201_2024_GrowthData")
@@ -256,20 +256,20 @@ TestSheet <- OD_meta %>%
 
 #https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0
 
-sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = "TestSheet")
+# sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = "TestSheet")
 
 #Starts but fails; maybe filter out superfluous content b/f write to GoogleSheets; trying to send data to Googlesheets faster than write quota
 
 # https://stackoverflow.com/questions/66186332/googlesheets-quota-limit-issues-possible-failure-to-use-api-key
 
 
- OD_meta %>%
-  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
-  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
-  arrange(Temp_C) %>%
-  unite("Group_Bench", Group, Bench, sep = "_") %>%
-  nest(.by = c(Group_Bench)) %>%
-   {walk2(.x = .$data, .y = .$Group_Bench, ~ sheet_write(.x, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = .y))}
+ # OD_meta %>%
+ #  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+ #  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+ #  arrange(Temp_C) %>%
+ #  unite("Group_Bench", Group, Bench, sep = "_") %>%
+ #  nest(.by = c(Group_Bench)) %>%
+ #   {walk2(.x = .$data, .y = .$Group_Bench, ~ sheet_write(.x, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph6dmsu-H9aG-_l9a90wQNthB-JJCqmWDE/edit#gid=0", sheet = .y))}
  
 # Show in New Window
 # ✔ Writing to BIOL2201_GrowthData_2024.
@@ -295,6 +295,7 @@ sheet_write(TestSheet, ss = "https://docs.google.com/spreadsheets/d/1_Rvfe3UV0ph
 #  15. gargle::response_as_json(resp)
 #  
 ```
+#https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
 
 ```{r export .csv to shared OneDrive folder}
   OD_meta %>%
