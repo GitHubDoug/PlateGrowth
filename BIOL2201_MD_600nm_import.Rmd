@@ -213,21 +213,34 @@ OD_meta %>%
 
 
   #working on bulk write of nested dataframe to .csv, instead of filtering
+  #https://community.rstudio.com/t/odd-behavior-with-walk2-and-pipe/5543/5
+#need to use %>% pipe, not |> pipe
+
+#  test <- 
+    
+    OD_meta %>%
+  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
+  arrange(Temp_C) %>%
+  unite("Group_Bench", Group, Bench, sep = "_") %>%
+  nest(.by = c(Group_Bench)) %>%
+  {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path(DataOut, str_c(.y, ".csv"))))}
+
+
+  walk2(.x = test$data, .y = test$Group, ~ write_csv(.x, file = file.path(DataOut, str_c(.y, ".csv"))))
+
+#  https://stackoverflow.com/questions/49265737/applying-purrrwalk2-to-a-data-frame-of-data-frames-at-the-end-of-a-pipe
   
-  # test <- 
-  #   
-  #   OD_meta |>
+  # test2 <- OD_meta %>%
   # select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
   # pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
   # arrange(Temp_C) %>%
-  # nest(.by = c(Group)) %>%
-  # walk2(.$data, .$Group, ~ write_csv(.x, file = paste0(.y, ".csv")))  
+  # nest(.by = c(Group, Bench))
   # 
+  # # %>%
+  # # {pwalk(list(.$data, .$Group, .$Bench), ~ write_csv(.$data, file = paste0(.$Group, .$Bench, ".csv")))}
   # 
-  # walk2(test$data, test$Bench, ~ write_csv(.x, file = paste0(.y, ".csv")))
-
-
-  
+  # pwalk(list(data = test2$data, group = test2$Group, bench = test2$Bench), ~ write_csv(data, file = str_c(group, bench, ".csv"))) 
 ```
 
 Implement Growth Curve fits well by well.
