@@ -8,7 +8,7 @@ output:
     code_folding: hide
 ---
 
-This .Rmd imports Molecular Device Fluorescence well plate files, generated using a single wavelength protocol, with one or more plates in the file.
+This .Rmd imports Molecular Device Fluorescence well plate files, with data from one plates in the file.
 The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
@@ -30,48 +30,50 @@ DayBench = "B1"
 
 
 #set variables for file import & processing
-DataPathMD <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
+DataPath <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
 file_id <- ".txt"
 
 DataOut <- "ProcessData"
-DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/StudentData"
+DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData
+"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
 HeaderRowsMD <- 2
 
-MetaDataURL <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
+MetaData <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaData
+"
 ```
 
-Load MetaData from GoogleSheet
+Load MetaData from OneDrive
 ```{r read metadata}
-#deauthorizes access to googlesheet
-gs4_deauth()
-
-#read contents of MetaData from GoogleSheet
-
-MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
-MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
-MetaData <- rbind(MetaData20, MetaData37)
-
-rm(MetaData20, MetaData37)
-
-#correct values and variable names in MetaData
-MetaData <- MetaData %>%
-  mutate(Group = case_when(
-    Day =="TUESDAY" ~"TUES",
-    Day =="WEDNESDAY" ~"WED",
-    Day == "THURSDAY" ~ "THURS"
-  ), .after = Day) %>%
-  mutate(MysteryID = as.factor(as.character(MysteryID))) %>%
-  select(-c("Initials"))
+# #deauthorizes access to googlesheet
+# gs4_deauth()
+# 
+# #read contents of MetaData from GoogleSheet
+# 
+# MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
+# MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
+# MetaData <- rbind(MetaData20, MetaData37)
+# 
+# rm(MetaData20, MetaData37)
+# 
+# #correct values and variable names in MetaData
+# MetaData <- MetaData %>%
+#   mutate(Group = case_when(
+#     Day =="TUESDAY" ~"TUES",
+#     Day =="WEDNESDAY" ~"WED",
+#     Day == "THURSDAY" ~ "THURS"
+#   ), .after = Day) %>%
+#   mutate(MysteryID = as.factor(as.character(MysteryID))) %>%
+#   select(-c("Initials"))
 
 
 ```
 
 
 ```{r list data files}
-OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
+OD_files <- list.files(path = DataPath, pattern = file_id, full.names = TRUE)
 
 OD_files
 #test for duplicate file names in chl_files
