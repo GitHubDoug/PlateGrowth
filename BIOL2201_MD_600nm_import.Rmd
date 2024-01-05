@@ -34,31 +34,36 @@ DataPath <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
 file_id <- ".txt"
 
 DataOut <- "ProcessData"
-DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData
-"
+DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
 HeaderRowsMD <- 2
 
-MetaData <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaData
-"
+
+MetaData <- read_csv(file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx"))
+
+OD_files <- list.files(path = DataPath, pattern = file_id, full.names = TRUE)
+
+#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
+
+#MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
 ```
 
 Load MetaData from OneDrive
 ```{r read metadata}
-# #deauthorizes access to googlesheet
-# gs4_deauth()
-# 
-# #read contents of MetaData from GoogleSheet
-# 
+#deauthorizes access to googlesheet
+#gs4_deauth()
+
+#read contents of MetaData from GoogleSheet
+
 # MetaData20 <- read_sheet(MetaDataURL, sheet = "20")
 # MetaData37 <- read_sheet(MetaDataURL, sheet = "37")
 # MetaData <- rbind(MetaData20, MetaData37)
 # 
 # rm(MetaData20, MetaData37)
-# 
-# #correct values and variable names in MetaData
+
+#correct values and variable names in MetaData
 # MetaData <- MetaData %>%
 #   mutate(Group = case_when(
 #     Day =="TUESDAY" ~"TUES",
@@ -68,7 +73,7 @@ Load MetaData from OneDrive
 #   mutate(MysteryID = as.factor(as.character(MysteryID))) %>%
 #   select(-c("Initials"))
 
-
+MetaData <- read_csv(file = MetaData)
 ```
 
 
