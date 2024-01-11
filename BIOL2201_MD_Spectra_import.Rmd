@@ -12,14 +12,24 @@ This .Rmd imports Molecular Device Fluorescence well plate files, generated usin
 The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
+ToDo
+Type Convert on OD_data
+Select multiple wavelengths
+Use photobiology colour function to colour according to wavelength
+Plot multiple wavelength trajectories on same panels
+Export simple 600 nm trajectories for analyses in Excel
+Continue multispectral curve fitting in this or another .Rmd.
+
+
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
-library(lubridate) #tidyverse dates
 library(googledrive) #accessing googledrive
 library(googlesheets4) #accessing googlesheets
 library(minpack.lm) #curve fitting
 library(broom) #tidy model outputs
+#library(photobiology) photobiology::w_length2rgb
+
 
 ```
 
@@ -59,94 +69,140 @@ guess_encoding(file = OD_files[1])
 #"id" parameter of read_delim might replace read_delim_plus
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
 # 
-read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
+read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) |>
     mutate(Filename = flnm)
   }
 
 
-OD_data <- OD_files %>%
+OD_data <- OD_files |>
   map_df(~read_delim_plus(flnm = ., delimiter = DelimiterMD,  headerrows = HeaderRowsMD,  fileencode = FileEncodeMD))
 
 ```
 
+
+```{r tidy OD_data}
+OD_data <- OD_data |>
+  select(-c("Temperature(¡C)", "Basic Endpoint Protocol", "...27")) |>
+  rename(Wavelength_nm = Wavelength) |>
+  separate(Filename, into = c("Path1", "Path2", "YYYYMMDD", "HHMM","Plate", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+  select(-c("Path1", "Path2", "txt")) |>
+  relocate(c("YYYYMMDD", "HHMM","Plate", "Temp_C")) |>
+  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = TRUE) |>
+  mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM)) |>
+  mutate(Temp_C = as.numeric(Temp_C),
+         Wavelength_nm = as.numeric(Wavelength_nm)) |>
+  filter(!is.na(Wavelength_nm))
+```
+
+
+Add colour coding column vector
+```{r colournm vector}
+NM <- unique(OD_data$Wavelength_nm)
+ColourNM = (photobiology::w_length2rgb(NM))
+names(ColourNM) <- NM
+
+#ColourNM
+```
+
+
 ```{r test spectra}
-SpectraTest <- OD_data %>%
-  filter(Wavelength >= 450,
-         Wavelength <= 700) %>%
-  filter(Filename == OD_files[6]) %>%
+OD_data |>
+  filter(Wavelength_nm >= 450,
+         Wavelength_nm <= 700) |>
+  filter(Filename == OD_files[1]) |>
   ggplot() +
-  geom_point(aes(x = Wavelength, y = A1)) + 
+  geom_point(aes(x = Wavelength_nm, y = A1, colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
+  scale_colour_manual(values = ColourNM) +
   facet_grid(cols = vars(Filename)) + 
   theme_bw()
 
-SpectraTest
 
 # ggsave(filename = file.path("Plots", "SpectraTest.png"), plot = SpectraTest)
 ```
 
-```{r tidy OD_data}
-OD <- OD_data %>%
-  select(-c("Temperature(¡C)", "Basic Endpoint Protocol", "...27")) %>%
-  filter(Wavelength == 600) %>%
-  separate(Filename, into = c("Path1", "Path2", "YYYYMMDD", "HHMM","Plate", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
-  select(-c("Path1", "Path2", "txt")) %>%
-  relocate(c("YYYYMMDD", "HHMM","Plate", "Temp_C")) %>%
-  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = TRUE) %>%
-  mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM))
-
-```
-
 ```{r E_hours}
-OD <- OD %>%
-  group_by(Plate, Wavelength) %>%
-  mutate(E_hours =  as.numeric((YYYYMMDD_HHMM - min(YYYYMMDD_HHMM))) / 3600, .after = YYYYMMDD_HHMM) %>%
+OD_data <- OD_data |>
+  group_by(Plate, Wavelength_nm) |>
+  mutate(E_hours =  as.numeric((YYYYMMDD_HHMM - min(YYYYMMDD_HHMM))) / 3600, .after = YYYYMMDD_HHMM) |>
   ungroup()
 ```
 
-```{r OD test plot}
-OD %>% ggplot() +
+```{r OD test plots}
+OD_data |>
+  filter(Wavelength_nm == 600) |>
+  ggplot() +
   geom_line(aes(x = E_hours, y = A1)) + 
   theme_bw()
 
-OD %>% ggplot() +
+OD_data |> 
+  filter(Wavelength_nm == 600) |>
+  ggplot() +
   geom_line(aes(x = E_hours, y = log(A1))) + 
   theme_bw()
+
+OD_data |> 
+  filter(Wavelength_nm %in% c(500, 550, 600, 650, 750)) |>
+  ggplot() +
+  geom_line(aes(x = E_hours, y = log(A1), colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
+  scale_colour_manual(values = ColourNM) +
+  facet_grid(rows = vars(Wavelength_nm)) + 
+  theme_bw()
+
 ```
 
-Merge OD with MetaData
-XXXX
 
 ```{r long format}
-OD_long <- OD %>%
-  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength, Filename), names_to = "Well", values_to = "OD_600") %>%
+OD_long <- OD_data |>
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength_nm, Filename), names_to = "Well", values_to = "OD") |>
   separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
 
 ```
 
 
 ```{r logOD}
-OD_long <- OD_long %>%
-  mutate(logOD_600 = log(OD_600))
+OD_long <- OD_long |>
+  mutate(logOD = log(OD))
 ```
 
 ```{r OD facet plot}
-OD_long %>% ggplot() +
-  geom_line((aes(x = E_hours, y = OD_600))) + 
+OD_long |> ggplot() +
+  geom_line(aes(x = E_hours, y = logOD, colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
+   scale_colour_manual(values = ColourNM) +
   theme_bw()
 
-OD_long %>% ggplot() +
-  geom_line((aes(x = E_hours, y = logOD_600))) + 
-  facet_grid(rows = vars(Row), cols = vars(Col)) +
-  theme_bw()
+
+```
+Need to Fix MetaData variable columns and File data columns for left join.
+Need PlateID and Well in both MetaData and File data
+```{r merge with MetaData}
+# OD600Meta <- left_join(OD_long, MetaData, by = )
+ODMeta <- OD_long
+
 ```
 
-```{r save GrowthLong, echo=FALSE}
-saveRDS(OD_long, file.path(DataOut, 
-paste(Project, "OD_long.Rds", sep = "_"), fsep = .Platform$file.sep))
+
+```{r save OD600Meta, echo=FALSE}
+saveRDS(ODMeta, file.path(DataOut, 
+paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
+
 ```
 
-Implement Growth Curve fits well by well.
+#https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
+
+```{r export OD600.csv to shared OneDrive folder}
+OD600Meta |>
+  # #select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) |>
+  # pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) |>
+  # arrange(Temp_C) |>
+  # unite("Group_Bench", Group, Bench, sep = "_") |>
+  # nest(.by = c(Group_Bench)) |>
+  # {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
+
+
+Implement MultiSpectral Analyses and Growth Curve fits well by well.
 Define equations as functions.
 x will be taken from 'E_days' when we run the fit.
 ```{r logistic_eqn}
@@ -161,10 +217,10 @@ possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
 This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 ```{r growth fits}
-OD_nest <- OD_long %>%
+OD_nest <- OD_long |>
   nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD_600, logOD_600))
 
-OD_nest <- OD_nest %>% 
+OD_nest <- OD_nest |> 
   mutate(FitLog = map(data, ~possibnlSLM(OD_600 ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
                                          data = .x,
                                          start = list(Intercept = min(.$OD_600, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD_600, na.rm = TRUE))
@@ -175,8 +231,8 @@ OD_nest <- OD_nest %>%
   ParamLog = map(FitLog, glance)
   )
 
-OD_nest %>%
-  unnest(PredictLog) %>%
+OD_nest |>
+  unnest(PredictLog) |>
   ggplot() + 
   #geom_point(aes(x = E_hours, y = OD_600)) +
   geom_point(aes(x = E_hours, y = OD_600)) + 
@@ -184,10 +240,10 @@ OD_nest %>%
   facet_grid(row = vars(Row), col = vars(Col)) +
   theme_bw()
 
-OD_nest %>% 
-  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) %>%
-  unnest(TidiedLog) %>%
-  select(-statistic) %>%
+OD_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
 ```
