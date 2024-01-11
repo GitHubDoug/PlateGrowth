@@ -158,15 +158,9 @@ OD_long <- OD_data |>
 
 ```
 
-
-```{r logOD}
-OD_long <- OD_long |>
-  mutate(logOD = log(OD))
-```
-
 ```{r OD facet plot}
 OD_long |> ggplot() +
-  geom_line(aes(x = E_hours, y = logOD, colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
+  geom_line(aes(x = E_hours, y = log(OD), colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
   facet_grid(rows = vars(Row), cols = vars(Col)) +
    scale_colour_manual(values = ColourNM) +
   theme_bw()
@@ -189,12 +183,13 @@ paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 #https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
-
+#need to get metadata working to implement this export; should work.
 ```{r export OD600.csv to shared OneDrive folder}
 OD600Meta |>
   # #select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) |>
-  # pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) |>
-  # arrange(Temp_C) |>
+  # pivot_wider(names_from = c(Well, Wavelength_nm, MysteryID), values_from = c(OD)) |>
+   pivot_wider(names_from = c(Well, Wavelength_nm), values_from = c(OD)) |>
+   arrange(Temp_C) |>
   # unite("Group_Bench", Group, Bench, sep = "_") |>
   # nest(.by = c(Group_Bench)) |>
   # {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
@@ -216,14 +211,15 @@ possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 
 Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
 This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+
 ```{r growth fits}
-OD_nest <- OD_long |>
-  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD_600, logOD_600))
+OD_nest <- ODMeta |>
+  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD))
 
 OD_nest <- OD_nest |> 
-  mutate(FitLog = map(data, ~possibnlSLM(OD_600 ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+  mutate(FitLog = map(data, ~possibnlSLM(OD ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
                                          data = .x,
-                                         start = list(Intercept = min(.$OD_600, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD_600, na.rm = TRUE))
+                                         start = list(Intercept = min(.$OD, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD, na.rm = TRUE))
                                          )
   ),
   PredictLog = map(FitLog, augment),
@@ -234,9 +230,10 @@ OD_nest <- OD_nest |>
 OD_nest |>
   unnest(PredictLog) |>
   ggplot() + 
-  #geom_point(aes(x = E_hours, y = OD_600)) +
-  geom_point(aes(x = E_hours, y = OD_600)) + 
-  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`)) +
+  #geom_point(aes(x = E_hours, y = OD)) +
+  geom_point(aes(x = E_hours, y = OD, colour = as.factor(Wavelength_nm))) + 
+  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`, colour = as.factor(Wavelength_nm))) +
+  scale_colour_manual(values = ColourNM) +
   facet_grid(row = vars(Row), col = vars(Col)) +
   theme_bw()
 
