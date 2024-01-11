@@ -243,5 +243,15 @@ OD_nest |>
   select(-statistic) |>
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
+OD_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  filter(Well == "A1") |>
+  ggplot() +
+  geom_point(aes(x = Wavelength_nm, y = estimate_Mu)) +
+  theme_bw()
+
 ```
 
