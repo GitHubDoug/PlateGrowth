@@ -41,7 +41,10 @@ DelimiterMD <- "\t"
 HeaderRowsMD <- 2
 
 
-MetaData <- read_csv(file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx"))
+MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")) |>
+  mutate(Group = case_when(Day == "TUESDAY" ~ "TUES",
+                         Day == "WEDNESDAY" ~ "WED",
+                         Day == "THURSDAY" ~ "THURS"))
 
 OD_files <- list.files(path = DataPath, pattern = file_id, full.names = TRUE)
 
@@ -73,7 +76,7 @@ Load MetaData from OneDrive
 #   mutate(MysteryID = as.factor(as.character(MysteryID))) %>%
 #   select(-c("Initials"))
 
-MetaData <- read_csv(file = MetaData)
+#MetaData2 <- read_csv(file = MetaData)
 ```
 
 
@@ -157,17 +160,13 @@ OD_long <- OD %>%
 ```
 
 
-```{r logOD}
-OD_long <- OD_long %>%
-  mutate(logOD_600 = log(OD_600))
-```
 
 ```{r OD facet plot}
 OD_long %>% 
   filter(Temp_C == 20,
          Group == DayGroup) %>%
   ggplot() +
-  geom_point((aes(x = E_hours, y = logOD_600, colour = Row))) + 
+  geom_point((aes(x = E_hours, y = log(OD_600), colour = Row))) + 
   facet_grid(rows = vars(Bench), cols = vars(Col)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Column", breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
@@ -185,7 +184,7 @@ OD_long %>%
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Plate Row"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
-ggsave(filename = file.path("Plots", "WellPlateExample.png") )
+#ggsave(filename = file.path("Plots", "WellPlateExample.png") )
 ```
 
 Merge OD_long with MetaData
@@ -224,7 +223,7 @@ OD_meta %>%
 
 #walk2 works, pwalk does not, so create GroupBench variable for grouping, instead of grouping by Group and Bench (preferred)    
   OD_meta %>%
-  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
+  select(-c(Media_mL, Innoc_mL, Row, Col)) %>%
   pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
   arrange(Temp_C) %>%
   unite("Group_Bench", Group, Bench, sep = "_") %>%
@@ -302,14 +301,19 @@ OD_meta %>%
 #  15. gargle::response_as_json(resp)
 #  
 ```
+
 #https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
 
+Working on getting clean output.
 ```{r export .csv to shared OneDrive folder}
-  OD_meta %>%
-  select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) %>%
-  pivot_wider(names_from = c(Well, MysteryID), values_from = c(OD_600)) %>%
-  arrange(Temp_C) %>%
-  unite("Group_Bench", Group, Bench, sep = "_") %>%
+ test <- OD_meta %>%
+  select(-c(Row, Col, Day, Initials)) %>%
+  unite("Group_Bench", Group, Bench, sep = "_") |>
+  pivot_wider(names_from = c(Well), values_from = c(OD_600)) %>%
+  arrange(Temp_C, ) 
+
+
+%>%
   nest(.by = c(Group_Bench)) %>%
   {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
 
