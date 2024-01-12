@@ -13,12 +13,8 @@ The size of the well plate does not matter; the import creates columns for RowCo
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
 ToDo
-Type Convert on OD_data
-Select multiple wavelengths
-Use photobiology colour function to colour according to wavelength
-Plot multiple wavelength trajectories on same panels
+
 Export simple 600 nm trajectories for analyses in Excel
-Continue multispectral curve fitting in this or another .Rmd.
 
 
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
@@ -33,6 +29,7 @@ library(broom) #tidy model outputs
 
 ```
 
+Fix File Paths for Import once DataSets accumulate
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
 
@@ -44,6 +41,8 @@ MetaData <- read_sheet("https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwV
 
 #set variables for file import & processing
 DataPathMD <- file.path("RawData", "TestPlate", fsep = .Platform$file.sep)
+DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/StudentDataTest"
+
 file_id <- ".txt"
 
 DataOut <- "ProcessData"
@@ -58,6 +57,18 @@ OD_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
 OD_files
 #test for duplicate file names in chl_files
 unique(duplicated(OD_files))
+
+# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")) |>
+#   mutate(Group = case_when(Day == "TUESDAY" ~ "TUES",
+#                          Day == "WEDNESDAY" ~ "WED",
+#                          Day == "THURSDAY" ~ "THURS"))
+
+
+
+
+#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
+
+#MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
 
 ```
 ```{r guess encoding}
@@ -150,6 +161,21 @@ OD_data |>
 
 ```
 
+Export wide format OD_data to OneDrive for Excel Analyses
+Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
+Fix this once data folders accumulate; Day, Bench, Light
+https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
+
+```{r}
+# OD_data %>%
+#   filter(Wavelength_nm == 600) %>%
+#   unite("Group_Bench", Group, Bench, sep = "_") %>%
+#   arrange(Temp_C) %>%
+#   nest(.by = c(Group_Bench)) %>%
+#   {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
+
 
 ```{r long format}
 OD_long <- OD_data |>
@@ -167,6 +193,7 @@ OD_long |> ggplot() +
 
 
 ```
+
 Need to Fix MetaData variable columns and File data columns for left join.
 Need PlateID and Well in both MetaData and File data
 ```{r merge with MetaData}
@@ -185,11 +212,11 @@ paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
 #https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
 #need to get metadata working to implement this export; should work.
 ```{r export OD600.csv to shared OneDrive folder}
-OD600Meta |>
+#OD600Meta |>
   # #select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) |>
   # pivot_wider(names_from = c(Well, Wavelength_nm, MysteryID), values_from = c(OD)) |>
-   pivot_wider(names_from = c(Well, Wavelength_nm), values_from = c(OD)) |>
-   arrange(Temp_C) |>
+   #pivot_wider(names_from = c(Well, Wavelength_nm), values_from = c(OD)) |>
+  # arrange(Temp_C) |>
   # unite("Group_Bench", Group, Bench, sep = "_") |>
   # nest(.by = c(Group_Bench)) |>
   # {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
