@@ -34,7 +34,11 @@ DataPath <- file.path("RawData", "Single600Files", fsep = .Platform$file.sep)
 file_id <- ".txt"
 
 DataOut <- "ProcessData"
-DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData"
+
+# DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData"
+
+DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/StudentDataTest"
+
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
@@ -106,7 +110,7 @@ OD_data <- OD_files %>%
 ```
 
 ```{r tidy OD_data}
-OD <- OD_data %>%
+OD_data <- OD_data %>%
   select(-c("...1", "Temperature(¡C)", "...27")) %>%
   filter(!is.na(A1))  %>%
   separate(Filename, into = c("Path1", "Path2", "DDMMYYYY", "HHMM","Group", "Bench", "Temp_C", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
@@ -118,7 +122,7 @@ OD <- OD_data %>%
 
 #3 rows of data to average from each well measurement
 
-OD <- OD %>%
+OD_data <- OD_data %>%
   group_by(DDMMYYYY_HHMM, Group, Bench, Temp_C, Filename) %>%
   summarize(across(A1:D6, mean)) %>%
   ungroup()
@@ -127,21 +131,21 @@ OD <- OD %>%
 
 
 ```{r E_hours}
-OD <- OD %>%
+OD_data <- OD_data %>%
   group_by(Group, Bench, Temp_C) %>%
   mutate(E_hours =  as.numeric((DDMMYYYY_HHMM - min(DDMMYYYY_HHMM))) / 3600, .after = DDMMYYYY_HHMM) %>%
   ungroup()
 ```
 
 ```{r OD test plot}
-OD %>% ggplot() +
+OD_data %>% ggplot() +
   geom_point(aes(x = E_hours, y = A1)) + 
   facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
    scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Group"), breaks = NULL, labels = NULL)) +
   theme_bw()
 
-OD %>% ggplot() +
+OD_data %>% ggplot() +
   geom_point(aes(x = E_hours, y = A1)) + 
   facet_grid(rows = vars(Group), cols = vars(Bench, Temp_C)) +
    scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("Bench"), breaks = NULL, labels = NULL)) +
@@ -150,8 +154,19 @@ OD %>% ggplot() +
 
 ```
 
+Export wide format OD_data to OneDrive for Excel Analyses
+Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
+```{r}
+OD_data %>%
+  unite("Group_Bench", Group, Bench, sep = "_") %>%
+  arrange(Temp_C) %>%
+  nest(.by = c(Group_Bench)) %>%
+  {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
 
 
+Reformat for Analyses in R
 ```{r long format}
 OD_long <- OD %>%
   pivot_longer(cols = -c(DDMMYYYY_HHMM, E_hours, Group, Bench, Temp_C, Filename), names_to = "Well", values_to = "OD_600") %>%
