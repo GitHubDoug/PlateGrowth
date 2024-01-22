@@ -1,0 +1,269 @@
+---
+title: "Import microbial plate growth data"
+author: "Maximilian Berthold, Douglas A. Campbell"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+This .Rmd imports Molecular Device Fluorescence well plate files, generated using at multiple excitation/emission wavelength pairs.
+The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
+Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
+
+ToDo
+
+Export simple Ex440nm Em680 nm trajectories for analyses in Excel
+Assemble tidied multi-wavelength data for analyses in RStudio.cloud (Posit.cloud)
+
+
+```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
+# libraries; Note check actual dependencies
+library(tidyverse) #core tidyverse packages
+#library(googledrive) #accessing googledrive
+#library(googlesheets4) #accessing googlesheets
+#library(minpack.lm) #curve fitting
+#library(broom) #tidy model outputs
+library(photobiology) #photobiology::w_length2rgb
+
+
+```
+
+
+```{r variable names for file import & processing}
+Project <- "BIOL2201"
+
+Ex_nm <- c(440, 520, 660)
+#Add colour coding column vector
+ColourNM = (photobiology::w_length2rgb(Ex_nm))
+names(ColourNM) <- Ex_nm
+
+#ColourNM
+
+#set variables for file import & processing
+
+#LocalFilePath
+#DataPathMD <- file.path("RawData", "TestPlate", fsep = .Platform$file.sep)
+
+DataInOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/TestRaw"
+
+DataOutOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/Lab3_MicroGrowth/TestGrowthData"
+
+file_id <- ".txt"
+
+#DataOut <- "ProcessData"
+
+FileEncodeMD <- "UTF-16LE" 
+DelimiterMD <- "\t"
+HeaderRowsMD <- 2  #Ex & Em nm data actually in Row 1
+
+#list of files
+ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
+
+ExEm_files
+#test for duplicate file names in chl_files
+unique(duplicated(ExEm_files))
+
+  scale_colour_manual(values = ColourNM) +
+
+# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")) |>
+#   mutate(Group = case_when(Day == "TUESDAY" ~ "TUES",
+#                          Day == "WEDNESDAY" ~ "WED",
+#                          Day == "THURSDAY" ~ "THURS"))
+
+
+
+
+#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
+
+#MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
+
+```
+
+
+```{r guess encoding}
+guess_encoding(file = ExEm_files[1])
+
+```
+
+
+```{r read files}
+#"id" parameter of read_delim might replace read_delim_plus
+#a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
+# 
+read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) |>
+    mutate(Filename = flnm)
+  }
+
+
+ExEm_data <- ExEm_files |>
+  map_df(~read_delim_plus(flnm = ., delimiter = DelimiterMD,  headerrows = HeaderRowsMD,  fileencode = FileEncodeMD))
+
+```
+
+Ex and Em nm listed in Line 1 of original file; 'skipped' in import
+```{r tidy ExEm_data}
+ExEm_data <- ExEm_data |>
+  select(-c("Temperature(¡C)",  "...27")) |>
+  separate(Filename, into = c("Path1", "Path2", "Path3", "Path4", "Path5", "Path6", "Path7", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+  select(-c("Path1", "Path2", "Path3", "Path4", "Path5", "Path6", "Path7", "txt")) |>
+  rename(MeasurePt = `...1`) |>
+  filter(!(is.na(as.numeric(MeasurePt))))
+ 
+
+ExEm_data <- ExEm_data |>
+  group_by(Filename) |>
+  mutate(MeasureNumber = row_number()) |>
+  mutate(Excite_nm = case_when(MeasureNumber %in% c(1:5) ~ Ex_nm[1], #smarter ways to do this
+                               MeasureNumber %in% c(6:10) ~ Ex_nm[2],
+                               MeasureNumber %in% c(11:15) ~ Ex_nm[3]), .after = MeasurePt
+  )
+ 
+ExEm_mean <- ExEm_data |>
+  filter(!is.na(Excite_nm)) |>
+  group_by(Filename, YYYYMMDD, HHMM, DAY, LIGHT, Excite_nm) |>
+  summarize(across(A1:D6, mean)) |>
+  ungroup() |>
+  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = FALSE) |>
+  mutate(DateTime = lubridate::ymd_hm(YYYYMMDD_HHMM)) |>
+  group_by( DAY, LIGHT) |>
+  mutate(E_hours =  as.numeric((DateTime - min(DateTime))) / 3600, .after = YYYYMMDD_HHMM) |>
+  ungroup()
+
+```
+
+
+```{r test plots}
+ExEm_mean |>
+  ggplot() +
+  geom_point(aes(x = E_hours, y = A1, colour = as.factor(Excite_nm)), show.legend = FALSE) + 
+  scale_colour_manual(values = ColourNM) +
+  theme_bw()
+
+
+# ggsave(filename = file.path("Plots", "SpectraTest.png"), plot = SpectraTest)
+```
+
+
+Export wide format OD_data to OneDrive for Excel Analyses
+Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
+Fix this once data folders accumulate; Day, Bench, Light
+https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
+
+```{r}
+# OD_data %>%
+#   filter(Wavelength_nm == 600) %>%
+#   unite("Group_Bench", Group, Bench, sep = "_") %>%
+#   arrange(Temp_C) %>%
+#   nest(.by = c(Group_Bench)) %>%
+#   {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
+
+
+```{r long format}
+OD_long <- OD_data |>
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength_nm, Filename), names_to = "Well", values_to = "OD") |>
+  separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
+
+```
+
+```{r OD facet plot}
+OD_long |> ggplot() +
+  geom_line(aes(x = E_hours, y = log(OD), colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
+  facet_grid(rows = vars(Row), cols = vars(Col)) +
+   scale_colour_manual(values = ColourNM) +
+  theme_bw()
+
+
+```
+
+Need to Fix MetaData variable columns and File data columns for left join.
+Need PlateID and Well in both MetaData and File data
+```{r merge with MetaData}
+# OD600Meta <- left_join(OD_long, MetaData, by = )
+ODMeta <- OD_long
+
+```
+
+
+```{r save OD600Meta, echo=FALSE}
+saveRDS(ODMeta, file.path(DataOut, 
+paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
+
+```
+
+#https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
+#need to get metadata working to implement this export; should work.
+```{r export OD600.csv to shared OneDrive folder}
+#OD600Meta |>
+  # #select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) |>
+  # pivot_wider(names_from = c(Well, Wavelength_nm, MysteryID), values_from = c(OD)) |>
+   #pivot_wider(names_from = c(Well, Wavelength_nm), values_from = c(OD)) |>
+  # arrange(Temp_C) |>
+  # unite("Group_Bench", Group, Bench, sep = "_") |>
+  # nest(.by = c(Group_Bench)) |>
+  # {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
+
+
+Implement MultiSpectral Analyses and Growth Curve fits well by well.
+Define equations as functions.
+x will be taken from 'E_days' when we run the fit.
+```{r logistic_eqn}
+LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
+}
+
+ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
+
+possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
+```
+
+Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
+This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+
+```{r growth fits}
+OD_nest <- ODMeta |>
+  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD))
+
+OD_nest <- OD_nest |> 
+  mutate(FitLog = map(data, ~possibnlSLM(OD ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+                                         data = .x,
+                                         start = list(Intercept = min(.$OD, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD, na.rm = TRUE))
+                                         )
+  ),
+  PredictLog = map(FitLog, augment),
+  TidiedLog = map(FitLog, tidy),
+  ParamLog = map(FitLog, glance)
+  )
+
+OD_nest |>
+  unnest(PredictLog) |>
+  ggplot() + 
+  #geom_point(aes(x = E_hours, y = OD)) +
+  geom_point(aes(x = E_hours, y = OD, colour = as.factor(Wavelength_nm))) + 
+  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`, colour = as.factor(Wavelength_nm))) +
+  scale_colour_manual(values = ColourNM) +
+  facet_grid(row = vars(Row), col = vars(Col)) +
+  theme_bw()
+
+OD_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value))
+
+OD_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  filter(Well == "A1") |>
+  ggplot() +
+  geom_point(aes(x = Wavelength_nm, y = estimate_Mu)) +
+  theme_bw()
+
+```
+
