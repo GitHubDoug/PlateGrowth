@@ -65,19 +65,10 @@ ExEm_files
 #test for duplicate file names in chl_files
 unique(duplicated(ExEm_files))
 
-  scale_colour_manual(values = ColourNM) +
-
-# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")) |>
-#   mutate(Group = case_when(Day == "TUESDAY" ~ "TUES",
-#                          Day == "WEDNESDAY" ~ "WED",
-#                          Day == "THURSDAY" ~ "THURS"))
+Day = "TEST"
 
 
-
-
-#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
-
-#MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
+MetaData <- readxl::read_xlsx(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/Lab3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = 5)
 
 ```
 
@@ -141,9 +132,26 @@ ExEm_mean |>
   scale_colour_manual(values = ColourNM) +
   theme_bw()
 
-
-# ggsave(filename = file.path("Plots", "SpectraTest.png"), plot = SpectraTest)
 ```
+
+
+Long Format
+```{r long format}
+
+ExEm_long <- ExEm_mean |>
+  pivot_longer(cols = -c(Filename:Excite_nm, DateTime), names_to = "WELL", values_to = "Fluorescence") |>
+    separate(WELL, into = c("ROW", "COL"), sep = 1, remove = FALSE)
+
+```
+
+
+
+
+Merge with MetaData
+```{r merge with Meta}
+ExEm_Meta <- left_join(ExEm_long, MetaData, by = c("DAY", "LIGHT", "WELL"))
+```
+
 
 
 Export wide format OD_data to OneDrive for Excel Analyses
@@ -164,7 +172,7 @@ https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
 
 ```{r long format}
 OD_long <- OD_data |>
-  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength_nm, Filename), names_to = "Well", values_to = "OD") |>
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength_nm, Filename), names_to = "WELL", values_to = "OD") |>
   separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
 
 ```
