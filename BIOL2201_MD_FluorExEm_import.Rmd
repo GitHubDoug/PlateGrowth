@@ -68,7 +68,7 @@ unique(duplicated(ExEm_files))
 Day = "TEST"
 
 
-MetaData <- readxl::read_xlsx(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/Lab3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = 5)
+MetaData <- readxl::read_xlsx(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/Lab3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = "TEST")
 
 ```
 
@@ -153,6 +153,25 @@ ExEm_Meta <- left_join(ExEm_long, MetaData, by = c("DAY", "LIGHT", "WELL"))
 ```
 
 
+```{r test ExEm_Meta plots}
+ExEm_Meta |>
+  filter(!is.na(SAMPLE)) |>
+  ggplot() +
+  geom_point(aes(x = E_hours, y = Fluorescence, colour = as.factor(Excite_nm)), show.legend = FALSE) + 
+  scale_colour_manual(values = ColourNM) +
+  facet_grid(cols = vars(SAMPLE), rows = vars(Excite_nm)) + 
+  theme_bw()
+
+ExEm_Meta |>
+  filter(!is.na(SAMPLE)) |>
+  filter(WELL == "B1") |>
+  ggplot() +
+  geom_point(aes(x = E_hours, y = Fluorescence, colour = as.factor(Excite_nm)), show.legend = FALSE) + 
+  scale_colour_manual(values = ColourNM) +
+  facet_grid(cols = vars(SAMPLE), rows = vars(Excite_nm)) + 
+  theme_bw()
+
+```
 
 Export wide format OD_data to OneDrive for Excel Analyses
 Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
