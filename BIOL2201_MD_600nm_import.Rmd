@@ -35,9 +35,9 @@ file_id <- ".txt"
 
 DataOut <- "ProcessData"
 
-# DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData"
+# DataOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/PlateData"
 
-DataOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/StudentDataTest"
+DataOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/StudentDataTest"
 
 
 FileEncodeMD <- "UTF-16LE" 

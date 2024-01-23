@@ -8,7 +8,7 @@ output:
     code_folding: hide
 ---
 
-This .Rmd imports Molecular Device Fluorescence well plate files, generated using at multiple excitation/emission wavelength pairs.
+This .Rmd imports Molecular Device Fluorescence well plate files, generated using multiple excitation/emission wavelength pairs.
 The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
@@ -21,35 +21,40 @@ Assemble tidied multi-wavelength data for analyses in RStudio.cloud (Posit.cloud
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
-#library(googledrive) #accessing googledrive
-#library(googlesheets4) #accessing googlesheets
 #library(minpack.lm) #curve fitting
 #library(broom) #tidy model outputs
-#library(photobiology) photobiology::w_length2rgb
-
+library(photobiology) #photobiology::w_length2rgb
 
 ```
 
 Fix File Paths for Import once DataSets accumulate
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
+LabDay <- "TUES"
 
-#Files saved do not contain Ex Em nm settings
-Ex <- c(440, 520, 620)
+#File Ex Em nm settings lost from files during import b/c of Header structure
+
 Em <- 680
 
+Ex <- c(440, 520, 620) #Add colour coding vector
+ExNM = (photobiology::w_length2rgb(Ex))
+names(ExNM) <- Ex
 
 #set variables for file import & processing
-DataPathMD <- file.path("RawData", "TestRaw", fsep = .Platform$file.sep)
+#DataPathMD <- file.path("RawData", "TestRaw", fsep = .Platform$file.sep)
+#DataOut <- "ProcessData"
 
-#Read in from OneDrive failing; has worked
-DataInOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/TestRaw"
+#Read in from OneDrive; file path is fussy and contains spaces & " - Mount Allison University"
+#Remember to force sync to local harddrive b/f attempting import into RStudio
 
-DataOutOneDrive <- "OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/Lab3_MicroGrowth/TestGrowthData"
+#Consider whether to read in and process each day separately, or use recursive read in to accumulate files from all days together, then filter upon output?
+
+DataInOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/TUESDAY_GrowthData"
+
+DataOutOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/TUES_StudentData"
 
 file_id <- ".txt"
 
-#DataOut <- "ProcessData"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
@@ -57,18 +62,13 @@ HeaderRowsMD <- 2
 
 #Temporarily move data files to ~/Documents/GitHub/DougTeach/
 #list of files
-ExEm_files <- list.files(path = DataPathMD, pattern = file_id, full.names = TRUE)
+ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
 
 ExEm_files
 #test for duplicate file names in chl_files
 unique(duplicated(ExEm_files))
 
-# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")) |>
-#   mutate(Group = case_when(Day == "TUESDAY" ~ "TUES",
-#                          Day == "WEDNESDAY" ~ "WED",
-#                          Day == "THURSDAY" ~ "THURS"))
-
-
+MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
 
 
 #MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
@@ -79,7 +79,7 @@ unique(duplicated(ExEm_files))
 
 
 ```{r guess encoding}
-guess_encoding(file = OD_files[1])
+guess_encoding(file = ExEm_files[1])
 
 ```
 
@@ -100,85 +100,59 @@ ExEm_data <- ExEm_files |>
 ```{r tidy ExEm_data}
 ExEm_data2 <- ExEm_data |>
   select(-c("Temperature(¡C)", "...27")) |>
-  separate(Filename, into = c("Path1", "Path2", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
-  select(-c("Path1", "Path2", "txt")) |>
+  separate(Filename, into = c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+ select(-c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11",  "txt")) |>
   rename(MeasurePt = `...1`)
 
 #smarter way to code this I am sure
  ExEm_data3 <-  ExEm_data2 |>
    group_by(Filename) |>
-   mutate(Ex_nm = case_when(row_number() %in% c(1:5) ~ Ex_nm[1],
-                            row_number() %in% c(6:10) ~ Ex_nm[2],
-                            row_number() %in% c(11:15)  ~ Ex_nm[3]), .after = MeasurePt)
-   
-  relocate(c("YYYYMMDD", "HHMM","Day", "Light_uE")) |>
-  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = TRUE) |>
-  mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM)) |>
-  mutate(Temp_C = as.numeric(Temp_C),
-         Wavelength_nm = as.numeric(Wavelength_nm)) |>
-  filter(!is.na(Wavelength_nm))
+   mutate(Ex_nm = case_when(row_number() %in% c(1:5) ~ Ex[1],
+                            row_number() %in% c(6:10) ~ Ex[2],
+                            row_number() %in% c(11:15)  ~ Ex[3]), .after = MeasurePt) |>
+  relocate(c("YYYYMMDD", "HHMM","DAY", "LIGHT")) |>
+  unite(YYYYMMDD_HHMM,  YYYYMMDD:HHMM, sep = "_", remove = FALSE) |>
+  mutate(YYYYMMDD_HHMM = ymd_hm(YYYYMMDD_HHMM), 
+         Ex_nm = as.numeric(Ex_nm)) |>
+  filter(!is.na(Ex_nm))
+  
 ```
 
 Tricky file format
 Ex_nm, Em_nm missing from file format
 5 measure points x 3 Ex_nm for each well
 
-Add colour coding column vector
-```{r colournm vector}
-NM <- unique(OD_data$Wavelength_nm)
-ColourNM = (photobiology::w_length2rgb(NM))
-names(ColourNM) <- NM
-
-#ColourNM
-```
-
-
-```{r test spectra}
-OD_data |>
-  filter(Wavelength_nm >= 450,
-         Wavelength_nm <= 700) |>
-  filter(Filename == OD_files[1]) |>
-  ggplot() +
-  geom_point(aes(x = Wavelength_nm, y = A1, colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
-  scale_colour_manual(values = ColourNM) +
-  facet_grid(cols = vars(Filename)) + 
-  theme_bw()
-
-
-# ggsave(filename = file.path("Plots", "SpectraTest.png"), plot = SpectraTest)
-```
-
+Check to make sure E_hours working when more files accumulate
 ```{r E_hours}
-OD_data <- OD_data |>
-  group_by(Plate, Wavelength_nm) |>
+ExEm_data3 <- ExEm_data3 |>
+  group_by(DAY, LIGHT) |>
   mutate(E_hours =  as.numeric((YYYYMMDD_HHMM - min(YYYYMMDD_HHMM))) / 3600, .after = YYYYMMDD_HHMM) |>
   ungroup()
 ```
 
-```{r OD test plots}
-OD_data |>
-  filter(Wavelength_nm == 600) |>
-  ggplot() +
-  geom_line(aes(x = E_hours, y = A1)) + 
-  theme_bw()
+```{r summarize 5 MeasurePts for each Ex_nm and file}
 
-OD_data |> 
-  filter(Wavelength_nm == 600) |>
-  ggplot() +
-  geom_line(aes(x = E_hours, y = log(A1))) + 
-  theme_bw()
-
-OD_data |> 
-  filter(Wavelength_nm %in% c(500, 550, 600, 650, 750)) |>
-  ggplot() +
-  geom_line(aes(x = E_hours, y = log(A1), colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
-  scale_colour_manual(values = ColourNM) +
-  facet_grid(rows = vars(Wavelength_nm)) + 
-  theme_bw()
-
+ExEm_mean <- ExEm_data3 %>%
+  group_by(YYYYMMDD_HHMM, E_hours, YYYYMMDD, HHMM, DAY, LIGHT, Ex_nm, Filename) %>%
+  summarize(across(A1:D6, mean)) %>%
+  ungroup()
+  
 ```
 
 Export wide format OD_data to OneDrive for Excel Analyses
+With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export data for each DAY simply by re-running script.
+
+```{r export DAY csv}
+
+ExEm_mean |>
+  filter(Ex_nm == 440) |> #only include Chl data
+  #write_csv(file = file.path(DataOutOneDrive, "test.csv"))
+  write_csv(file = file.path(DataOutOneDrive, paste(Project, LabDay, "Chl", ".csv", sep = "_")))
+
+```
+
+
+More complicated version needed previously.
 Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
 Fix this once data folders accumulate; Day, Bench, Light
 https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
@@ -195,27 +169,17 @@ https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
 
 
 ```{r long format}
-OD_long <- OD_data |>
-  pivot_longer(cols = -c(YYYYMMDD_HHMM:Wavelength_nm, Filename), names_to = "Well", values_to = "OD") |>
-  separate(Well, into = c("Row", "Col"), sep = 1, remove = FALSE)
-
-```
-
-```{r OD facet plot}
-OD_long |> ggplot() +
-  geom_line(aes(x = E_hours, y = log(OD), colour = as.factor(Wavelength_nm)), show.legend = FALSE) + 
-  facet_grid(rows = vars(Row), cols = vars(Col)) +
-   scale_colour_manual(values = ColourNM) +
-  theme_bw()
-
+ExEm_long <- ExEm_mean |>
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Ex_nm, Filename), names_to = "WELL", values_to = "OD") |>
+  separate(WELL, into = c("ROW", "COL"), sep = 1, remove = FALSE)
 
 ```
 
 Need to Fix MetaData variable columns and File data columns for left join.
-Need PlateID and Well in both MetaData and File data
+Need DAY, LIGHT, WELL in both MetaData and File data
 ```{r merge with MetaData}
-# OD600Meta <- left_join(OD_long, MetaData, by = )
-ODMeta <- OD_long
+ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL))
+
 
 ```
 
@@ -240,6 +204,7 @@ paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
+XXXX 23 JAN 2024 XXXX
 
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 Define equations as functions.

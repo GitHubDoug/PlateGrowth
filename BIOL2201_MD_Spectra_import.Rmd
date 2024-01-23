@@ -66,7 +66,7 @@ unique(duplicated(OD_files))
 
 
 
-#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
+#MetaData <- file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
 
 #MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
 
