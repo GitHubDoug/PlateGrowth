@@ -189,7 +189,7 @@ ExEm_meta |>
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
   #scale_colour_manual(values = ExNM) +
-  #facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
+  facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
   labs(title = LabDay) +
   theme_bw()
 ```
