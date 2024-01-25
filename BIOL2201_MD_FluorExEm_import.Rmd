@@ -170,7 +170,7 @@ https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
 
 ```{r long format}
 ExEm_long <- ExEm_mean |>
-  pivot_longer(cols = -c(YYYYMMDD_HHMM:Ex_nm, Filename), names_to = "WELL", values_to = "OD") |>
+  pivot_longer(cols = -c(YYYYMMDD_HHMM:Ex_nm, Filename), names_to = "WELL", values_to = "Fluor") |>
   separate(WELL, into = c("ROW", "COL"), sep = 1, remove = FALSE)
 
 ```
@@ -178,10 +178,21 @@ ExEm_long <- ExEm_mean |>
 Need to Fix MetaData variable columns and File data columns for left join.
 Need DAY, LIGHT, WELL in both MetaData and File data
 ```{r merge with MetaData}
-ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL))
-
+ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
+  filter(!is.na(SAMPLE))
 
 ```
+
+```{r test plot}
+ExEm_meta |>
+  filter(Ex_nm == 440) |>
+  ggplot() +
+  geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
+  #scale_colour_manual(values = ExNM) +
+  facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
+  theme_bw()
+```
+
 
 
 ```{r save OD600Meta, echo=FALSE}
