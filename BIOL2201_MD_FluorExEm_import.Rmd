@@ -185,11 +185,12 @@ ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
 
 ```{r test plot}
 ExEm_meta |>
-  filter(Ex_nm == 440) |>
+  filter(Ex_nm == 620) |>
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
   #scale_colour_manual(values = ExNM) +
-  facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
+  #facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
+  labs(title = LabDay) +
   theme_bw()
 ```
 
