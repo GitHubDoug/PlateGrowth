@@ -21,8 +21,8 @@ Assemble tidied multi-wavelength data for analyses in RStudio.cloud (Posit.cloud
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
-#library(minpack.lm) #curve fitting
-#library(broom) #tidy model outputs
+library(minpack.lm) #curve fitting
+library(broom) #tidy model outputs
 library(photobiology) #photobiology::w_length2rgb
 
 ```
@@ -49,9 +49,9 @@ names(ExNM) <- Ex
 
 #Consider whether to read in and process each day separately, or use recursive read in to accumulate files from all days together, then filter upon output?
 
-DataInOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/TUESDAY_GrowthData"
+DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
-DataOutOneDrive <- "~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/TUES_StudentData"
+DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
 
 file_id <- ".txt"
 
@@ -146,6 +146,7 @@ With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export d
 
 ExEm_mean |>
   filter(Ex_nm == 440) |> #only include Chl data
+  arrange(LIGHT, E_hours) |>#order rows by Light and by E_hours
   #write_csv(file = file.path(DataOutOneDrive, "test.csv"))
   write_csv(file = file.path(DataOutOneDrive, paste(Project, LabDay, "Chl", ".csv", sep = "_")))
 
@@ -185,20 +186,33 @@ ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
 
 ```{r test plot}
 ExEm_meta |>
-  filter(Ex_nm == 620) |>
+  filter(Ex_nm == 440) |>
+  filter(Fluor >= 0,
+         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
   #scale_colour_manual(values = ExNM) +
   facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
+  labs(title = LabDay, subtitle = paste(Ex[1], "_nm"))+
+  theme_bw()
+
+ExEm_meta |>
+  filter(Fluor >= 0,
+         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+  ggplot() +
+  geom_point(aes(x = E_hours, y = Fluor, colour = LIGHT)) +
+  #scale_colour_manual(values = ExNM) +
+  facet_grid(rows = vars(SAMPLE), cols = vars(Ex_nm)) +
   labs(title = LabDay) +
   theme_bw()
 ```
 
+```{r save ExEm_meta, echo=FALSE}
 
-
-```{r save OD600Meta, echo=FALSE}
-saveRDS(ODMeta, file.path(DataOut, 
-paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
+ExEm_meta |>
+  filter(Fluor >= 0,
+         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+  saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
@@ -216,7 +230,6 @@ paste(Project, "ODMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
-XXXX 23 JAN 2024 XXXX
 
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 Define equations as functions.
@@ -225,7 +238,7 @@ x will be taken from 'E_days' when we run the fit.
 LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
 }
 
-ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
+#ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
 
 possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 ```
@@ -234,13 +247,15 @@ Fit treatment specific logistic growth trajectories using nest purrr:map & broom
 This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 
 ```{r growth fits}
-OD_nest <- ODMeta |>
-  nest(data = c(YYYYMMDD_HHMM, Filename, E_hours, OD))
+ExEm_nest <- ExEm_meta |>
+  filter(Fluor >= 0,
+         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+  nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
 
-OD_nest <- OD_nest |> 
-  mutate(FitLog = map(data, ~possibnlSLM(OD ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+ExEm_nest <- ExEm_nest|> 
+  mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
                                          data = .x,
-                                         start = list(Intercept = min(.$OD, na.rm = TRUE), Mu = 0.1, Pmax = max(.$OD, na.rm = TRUE))
+                                         start = list(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE))
                                          )
   ),
   PredictLog = map(FitLog, augment),
@@ -248,30 +263,41 @@ OD_nest <- OD_nest |>
   ParamLog = map(FitLog, glance)
   )
 
-OD_nest |>
+ExEm_nest |>
   unnest(PredictLog) |>
   ggplot() + 
-  #geom_point(aes(x = E_hours, y = OD)) +
-  geom_point(aes(x = E_hours, y = OD, colour = as.factor(Wavelength_nm))) + 
-  geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`, colour = as.factor(Wavelength_nm))) +
-  scale_colour_manual(values = ColourNM) +
-  facet_grid(row = vars(Row), col = vars(Col)) +
+  #geom_point(aes(x = E_hours, y = Fluor)) +
+  geom_point(aes(x = E_hours, y = Fluor, colour = as.factor(Ex_nm))) + 
+  geom_line(aes(x = E_hours, y = `.fitted`, colour = as.factor(Ex_nm))) +
+  #geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`)) +
+  scale_colour_manual(values = ExNM) +
+  facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
   theme_bw()
 
-OD_nest |> 
+ExEm_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
   unnest(TidiedLog) |>
   select(-statistic) |>
   pivot_wider(names_from = term, values_from = c(estimate:p.value))
 
-OD_nest |> 
+ExEm_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
   unnest(TidiedLog) |>
   select(-statistic) |>
   pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
-  filter(Well == "A1") |>
   ggplot() +
-  geom_point(aes(x = Wavelength_nm, y = estimate_Mu)) +
+  geom_point(aes(x = Ex_nm, y = estimate_Mu, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
+  theme_bw()
+
+ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  ggplot() +
+  geom_point(aes(x = Ex_nm, y = estimate_Pmax, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
   theme_bw()
 
 ```
