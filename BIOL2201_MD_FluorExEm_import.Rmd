@@ -30,7 +30,7 @@ library(photobiology) #photobiology::w_length2rgb
 Fix File Paths for Import once DataSets accumulate
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
-LabDay <- "TUES"
+LabDay <- "FRI"
 
 #File Ex Em nm settings lost from files during import b/c of Header structure
 
@@ -188,7 +188,7 @@ ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
 ExEm_meta |>
   filter(Ex_nm == 440) |>
   filter(Fluor >= 0,
-         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+         Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
   #scale_colour_manual(values = ExNM) +
@@ -197,8 +197,8 @@ ExEm_meta |>
   theme_bw()
 
 ExEm_meta |>
-  filter(Fluor >= 0,
-         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+   filter(Fluor >= 0,
+          Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = LIGHT)) +
   #scale_colour_manual(values = ExNM) +
@@ -217,7 +217,7 @@ ExEm_meta |>
 ```
 
 #https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
-#need to get metadata working to implement this export; should work.
+
 ```{r export OD600.csv to shared OneDrive folder}
 #OD600Meta |>
   # #select(-c(Media_mL, Innoc_mL, Row, Col, logOD_600)) |>
