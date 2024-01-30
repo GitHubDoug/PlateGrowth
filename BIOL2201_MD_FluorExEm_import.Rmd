@@ -43,6 +43,7 @@ names(ExNM) <- Ex
 
 #Currently read in and process each LabDay separately; Alternative could use recursive read in to accumulate files from all LabDays together, then filter upon output?
 
+#OneDrive paths do not work for Posit.cloud; need to move files from OneDrive to git tracked repository, then access with 'Pull' in Posit.cloud
 DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
 DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
@@ -61,8 +62,11 @@ ExEm_files
 #test for duplicate file names in chl_files
 unique(duplicated(ExEm_files))
 
-MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
+#Local MetaData path does not work on Posit.cloud
+# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
 
+#Local MetaData, moved from OneDrive to git tracked project, to github, update with 'pull' from GitHub
+MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabDay)
 
 ```
 
