@@ -12,11 +12,6 @@ This .Rmd imports Molecular Device Fluorescence well plate files, generated usin
 The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
-ToDo
-
-Export simple Ex440nm Em680 nm trajectories for analyses in Excel
-Assemble tidied multi-wavelength data for analyses in RStudio.cloud (Posit.cloud)
-
 
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
 # libraries; Note check actual dependencies
@@ -30,24 +25,23 @@ library(photobiology) #photobiology::w_length2rgb
 Fix File Paths for Import once DataSets accumulate
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
-LabDay <- "FRI"
+LabDay <- "TUES"
 
 #File Ex Em nm settings lost from files during import b/c of Header structure
 
 Em <- 680
 
-Ex <- c(440, 520, 620) #Add colour coding vector
+Ex <- c(440, 520, 620)
+
+#Add colour coding vector
 ExNM = (photobiology::w_length2rgb(Ex))
 names(ExNM) <- Ex
 
 #set variables for file import & processing
-#DataPathMD <- file.path("RawData", "TestRaw", fsep = .Platform$file.sep)
-#DataOut <- "ProcessData"
-
 #Read in from OneDrive; file path is fussy and contains spaces & " - Mount Allison University"
 #Remember to force sync to local harddrive b/f attempting import into RStudio
 
-#Consider whether to read in and process each day separately, or use recursive read in to accumulate files from all days together, then filter upon output?
+#Currently read in and process each LabDay separately; Alternative could use recursive read in to accumulate files from all LabDays together, then filter upon output?
 
 DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
@@ -60,7 +54,6 @@ FileEncodeMD <- "UTF-16LE"
 DelimiterMD <- "\t"
 HeaderRowsMD <- 2
 
-#Temporarily move data files to ~/Documents/GitHub/DougTeach/
 #list of files
 ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
 
@@ -70,10 +63,6 @@ unique(duplicated(ExEm_files))
 
 MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
 
-
-#MetaData <- file.path("OneDrive - Mount Allison University/BIOL2201_2024/BIOL2201LabMaterials/MicrobialGrowth/WellPlateMetaDataTest.xlsx")
-
-#MetaData <- "https://docs.google.com/spreadsheets/d/1FTKwYlJXd0ze9WwVXCvtwe5qkpN3_HNbeeM3hg7xnrI/edit#gid=0"
 
 ```
 
@@ -147,7 +136,6 @@ With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export d
 ExEm_mean |>
   filter(Ex_nm == 440) |> #only include Chl data
   arrange(LIGHT, E_hours) |>#order rows by Light and by E_hours
-  #write_csv(file = file.path(DataOutOneDrive, "test.csv"))
   write_csv(file = file.path(DataOutOneDrive, paste(Project, LabDay, "Chl", ".csv", sep = "_")))
 
 ```
@@ -230,7 +218,6 @@ ExEm_meta |>
 
 ```
 
-
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 Define equations as functions.
 x will be taken from 'E_days' when we run the fit.
@@ -266,10 +253,9 @@ ExEm_nest <- ExEm_nest|>
 ExEm_nest |>
   unnest(PredictLog) |>
   ggplot() + 
-  #geom_point(aes(x = E_hours, y = Fluor)) +
   geom_point(aes(x = E_hours, y = Fluor, colour = as.factor(Ex_nm))) + 
   geom_line(aes(x = E_hours, y = `.fitted`, colour = as.factor(Ex_nm))) +
-  #geom_ribbon(aes(x = E_hours, ymin =  `.fitted` - `.resid`, ymax =  `.fitted` + `.resid`)) +
+  geom_point(aes(x = E_hours, y =  `.resid`), size = 0.1) +
   scale_colour_manual(values = ExNM) +
   facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
   theme_bw()
