@@ -43,7 +43,7 @@ names(ExNM) <- Ex
 
 #Currently read in and process each LabDay separately; Alternative could use recursive read in to accumulate files from all LabDays together, then filter upon output?
 
-#OneDrive paths do not work for Posit.cloud; need to move files from OneDrive to git tracked repository, then access with 'Pull' in Posit.cloud
+dcampbel@mta.ca
 DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
 DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
