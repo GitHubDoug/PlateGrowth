@@ -37,7 +37,10 @@ Ex <- c(440, 520, 620)
 ExNM = (photobiology::w_length2rgb(Ex))
 names(ExNM) <- Ex
 
-#set variables for file import & processing
+```
+
+```{r set variables for file import, export}
+
 #Read in from OneDrive; file path is fussy and contains spaces & " - Mount Allison University"
 #Remember to force sync to local harddrive b/f attempting import into RStudio
 
@@ -55,6 +58,8 @@ HeaderRowsMD <- 2
 
 #list of files
 ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
+
+#Import from local OneDrive path does not work from Posit.cloud.  Need to move data files to git tracked project, push to GitHub, pull into Posit.cloud
 
 ExEm_files
 #test for duplicate file names in chl_files
