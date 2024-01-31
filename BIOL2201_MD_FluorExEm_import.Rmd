@@ -43,7 +43,6 @@ names(ExNM) <- Ex
 
 #Currently read in and process each LabDay separately; Alternative could use recursive read in to accumulate files from all LabDays together, then filter upon output?
 
-dcampbel@mta.ca
 DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
 DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
@@ -63,10 +62,10 @@ ExEm_files
 unique(duplicated(ExEm_files))
 
 #Local MetaData path does not work on Posit.cloud
-# MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
+MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
 
 #Local MetaData, moved from OneDrive to git tracked project, to github, update with 'pull' from GitHub
-MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabDay)
+#MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabDay)
 
 ```
 
@@ -129,7 +128,7 @@ ExEm_mean <- ExEm_data3 %>%
   group_by(YYYYMMDD_HHMM, E_hours, YYYYMMDD, HHMM, DAY, LIGHT, Ex_nm, Filename) %>%
   summarize(across(A1:D6, mean)) %>%
   ungroup()
-  
+
 ```
 
 Export wide format OD_data to OneDrive for Excel Analyses
@@ -164,8 +163,19 @@ https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
 ```{r long format}
 ExEm_long <- ExEm_mean |>
   pivot_longer(cols = -c(YYYYMMDD_HHMM:Ex_nm, Filename), names_to = "WELL", values_to = "Fluor") |>
-  separate(WELL, into = c("ROW", "COL"), sep = 1, remove = FALSE)
+  separate(WELL, into = c("Row", "Col"), sep = 1, remove = FALSE)
 
+ExEm_long |>
+  filter(Ex_nm == 440) |>
+  ggplot() +
+  geom_point(aes(x = E_hours, y = Fluor, colour = LIGHT)) +
+  facet_grid(rows = vars(`Row`), cols = vars(`Col`)) + 
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = sym("Row"), breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = sym("Col"), breaks = NULL, labels = NULL)) +
+  labs(title = LabDay, subtitle = paste(Ex[1], "_nm", sep = "")) +
+  theme_bw()
+
+ggsave(filename = file.path("Plots", "WellPlateFluorExample.png"))
 ```
 
 Need to Fix MetaData variable columns and File data columns for left join.
