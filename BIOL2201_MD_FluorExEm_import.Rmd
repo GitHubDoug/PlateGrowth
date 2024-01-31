@@ -175,7 +175,7 @@ ExEm_long |>
   labs(title = LabDay, subtitle = paste(Ex[1], "_nm", sep = "")) +
   theme_bw()
 
-ggsave(filename = file.path("Plots", "WellPlateFluorExample.png"))
+#ggsave(filename = file.path("Plots", "WellPlateFluorExample.png"))
 ```
 
 Need to Fix MetaData variable columns and File data columns for left join.
