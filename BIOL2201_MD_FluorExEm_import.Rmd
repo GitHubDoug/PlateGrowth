@@ -6,23 +6,27 @@ output:
   html_document:
     df_print: paged
     code_folding: hide
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 This .Rmd imports Molecular Device Fluorescence well plate files, generated using multiple excitation/emission wavelength pairs.
 The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
 Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
 
-
-```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE} 
+```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
 library(minpack.lm) #curve fitting
 library(broom) #tidy model outputs
 library(photobiology) #photobiology::w_length2rgb
+library(kableExtra)
 
 ```
 
 Fix File Paths for Import once DataSets accumulate
+
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
 LabDay <- "TUES"
@@ -50,16 +54,20 @@ DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2
 
 DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
 
+
+
 file_id <- ".txt"
 
 FileEncodeMD <- "UTF-16LE" 
 DelimiterMD <- "\t"
 HeaderRowsMD <- 2
 
-#list of files
+#list of files from OneDrive
 ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
 
 #Import from local OneDrive path does not work from Posit.cloud.  Need to move data files to git tracked project, push to GitHub, pull into Posit.cloud
+#List files stored on GitHub
+ExEm_files <- list.files(path = file.path("RawData", "TUES_GrowthData"), pattern = file_id, full.names = TRUE)
 
 ExEm_files
 #test for duplicate file names in chl_files
@@ -73,13 +81,13 @@ MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabD
 
 ```
 
-
 ```{r guess encoding}
 guess_encoding(file = ExEm_files[1])
 
 ```
 
-```{r read ExEm files}
+```{r read ExEm files, error = FALSE, message = FALSE, warning = FALSE}
+
 #"id" parameter of read_delim might replace read_delim_plus
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
 # 
@@ -92,12 +100,18 @@ ExEm_data <- ExEm_files |>
 
 ```
 
-
 ```{r tidy ExEm_data}
+# ExEm_data2 <- ExEm_data |>
+#   select(-c("Temperature(¡C)", "...27")) |>
+#   separate(Filename, into = c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+#  select(-c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11",  "txt")) |>
+#   rename(MeasurePt = `...1`)
+
+#Alternate tidy when running on Posit.cloud with GitHub RawData
 ExEm_data2 <- ExEm_data |>
   select(-c("Temperature(¡C)", "...27")) |>
-  separate(Filename, into = c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
- select(-c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11",  "txt")) |>
+  separate(Filename, into = c("Path1", "Path2", "Path3", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+ select(-c("Path1", "Path2", "Path3", "txt")) |>
   rename(MeasurePt = `...1`)
 
 #smarter way to code this I am sure
@@ -114,11 +128,10 @@ ExEm_data2 <- ExEm_data |>
   
 ```
 
-Tricky file format
-Ex_nm, Em_nm missing from file format
-5 measure points x 3 Ex_nm for each well
+Tricky file format Ex_nm, Em_nm missing from file format 5 measure points x 3 Ex_nm for each well
 
 Check to make sure E_hours working when more files accumulate
+
 ```{r E_hours}
 ExEm_data3 <- ExEm_data3 |>
   group_by(DAY, LIGHT) |>
@@ -135,8 +148,7 @@ ExEm_mean <- ExEm_data3 %>%
 
 ```
 
-Export wide format OD_data to OneDrive for Excel Analyses
-With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export data for each DAY simply by re-running script.
+Export wide format OD_data to OneDrive for Excel Analyses With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export data for each DAY simply by re-running script.
 
 ```{r export DAY csv}
 
@@ -147,11 +159,8 @@ ExEm_mean |>
 
 ```
 
-
 More complicated version needed previously.
-Need to use old %>% magrittr::pipe for compatibility; base R |> does not work
-Fix this once data folders accumulate; Day, Bench, Light
-https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
+Need to use old %\>% magrittr::pipe for compatibility; base R \|\> does not work Fix this once data folders accumulate; Day, Bench, Light <https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/>
 
 ```{r}
 # OD_data %>%
@@ -162,7 +171,6 @@ https://www.tidyverse.org/blog/2023/05/purrr-walk-this-way/
 #   {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
 
 ```
-
 
 ```{r long format}
 ExEm_long <- ExEm_mean |>
@@ -182,8 +190,8 @@ ExEm_long |>
 #ggsave(filename = file.path("Plots", "WellPlateFluorExample.png"))
 ```
 
-Need to Fix MetaData variable columns and File data columns for left join.
 Need DAY, LIGHT, WELL in both MetaData and File data
+
 ```{r merge with MetaData}
 ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
   filter(!is.na(SAMPLE))
@@ -215,14 +223,14 @@ ExEm_meta |>
 
 ```{r save ExEm_meta, echo=FALSE}
 
-ExEm_meta |>
-  filter(Fluor >= 0,
-         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
-  saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
+# ExEm_meta |>
+#   filter(Fluor >= 0,
+#          Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+#   saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
-#https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r
+\#<https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r>
 
 ```{r export OD600.csv to shared OneDrive folder}
 #OD600Meta |>
@@ -239,6 +247,7 @@ ExEm_meta |>
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 Define equations as functions.
 x will be taken from 'E_days' when we run the fit.
+
 ```{r logistic_eqn}
 LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
 }
@@ -254,7 +263,7 @@ This may be necessary if the 'nests' contain diverse data patterns that fail to 
 ```{r growth fits}
 ExEm_nest <- ExEm_meta |>
   filter(Fluor >= 0,
-         Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+         Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
 
 ExEm_nest <- ExEm_nest|> 
@@ -278,11 +287,11 @@ ExEm_nest |>
   facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
   theme_bw()
 
-ExEm_nest |> 
+kable(ExEm_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
   unnest(TidiedLog) |>
   select(-statistic) |>
-  pivot_wider(names_from = term, values_from = c(estimate:p.value))
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)), digits = 2)
 
 ExEm_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
@@ -305,4 +314,3 @@ ExEm_nest |>
   theme_bw()
 
 ```
-
