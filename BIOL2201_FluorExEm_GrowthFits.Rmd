@@ -11,9 +11,9 @@ editor_options:
     wrap: sentence
 ---
 
-This .Rmd imports Molecular Device Fluorescence well plate files, generated using multiple excitation/emission wavelength pairs.
-The size of the well plate does not matter; the import creates columns for RowColumn LetterNumber (A01 etc.) for the largest plate type in the list of files.
-Import of smaller plate types results in NA in the non-existent RowColumn for that plate.
+This .Rmd uses an imported .Rds containing tidied data from Molecular Device Fluorescence well plate files, generated using multiple excitation/emission wavelength pairs, along with MetaData imported from an .xlsx file.
+
+It fits logistic growth curves to data grouped by SAMPLE (taxa) and LIGHT.
 
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
 # libraries; Note check actual dependencies
@@ -25,16 +25,14 @@ library(kableExtra)
 
 ```
 
-Fix File Paths for Import once DataSets accumulate
 
-```{r variable names for file import & processing MOLECULAR DEVICES}
+```{r variable names for processing}
 Project <- "BIOL2201"
 LabDay <- "TUES"
 
-#File Ex Em nm settings lost from files during import b/c of Header structure
+#File Ex Em nm settings lost from files during import b/c of Header structure, added back during tidying.
 
 Em <- 680
-
 Ex <- c(440, 520, 620)
 
 #Add colour coding vector
@@ -45,29 +43,21 @@ names(ExNM) <- Ex
 
 ```{r set variables for file import, export}
 
-#Read in from OneDrive; file path is fussy and contains spaces & " - Mount Allison University"
+#Read in .Rds, stored on OneDrive; file path is fussy and contains spaces & " - Mount Allison University"
 #Remember to force sync to local harddrive b/f attempting import into RStudio
 
 #Currently read in and process each LabDay separately; Alternative could use recursive read in to accumulate files from all LabDays together, then filter upon output?
 
-DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
+DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/StudentData", sep = "")
 
-DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
-
-
-
-file_id <- ".txt"
-
-FileEncodeMD <- "UTF-16LE" 
-DelimiterMD <- "\t"
-HeaderRowsMD <- 2
+file_id = ".Rds"  #set value to search for file type
 
 #list of files from OneDrive
-ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
+ExEm_meta_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = TRUE)
 
 #Import from local OneDrive path does not work from Posit.cloud.  Need to move data files to git tracked project, push to GitHub, pull into Posit.cloud
 #List files stored on GitHub
-ExEm_files <- list.files(path = file.path("RawData", "TUES_GrowthData"), pattern = file_id, full.names = TRUE)
+ExEm_files <- list.files(path = file.path("StudentData"), pattern = file_id, full.names = TRUE)
 
 ExEm_files
 #test for duplicate file names in chl_files
