@@ -18,9 +18,6 @@ Import of smaller plate types results in NA in the non-existent RowColumn for th
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
-library(photobiology) #photobiology::w_length2rgb
-library(kableExtra)
-
 ```
 
 Fix File Paths for Import once DataSets accumulate
