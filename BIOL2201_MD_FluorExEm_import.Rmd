@@ -50,7 +50,7 @@ names(ExNM) <- Ex
 
 DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_GrowthData", sep = "")
 
-DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
+DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", "StudentData", sep = "")
 
 file_id <- ".txt"
 
