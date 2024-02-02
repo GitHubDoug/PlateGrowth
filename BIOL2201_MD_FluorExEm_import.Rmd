@@ -20,7 +20,6 @@ Import of smaller plate types results in NA in the non-existent RowColumn for th
 library(tidyverse) #core tidyverse packages
 ```
 
-Fix File Paths for Import once DataSets accumulate
 
 ```{r variable names for file import & processing MOLECULAR DEVICES}
 Project <- "BIOL2201"
