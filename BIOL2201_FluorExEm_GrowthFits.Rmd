@@ -18,6 +18,8 @@ Import of smaller plate types results in NA in the non-existent RowColumn for th
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
 # libraries; Note check actual dependencies
 library(tidyverse) #core tidyverse packages
+library(minpack.lm) #curve fitting
+library(broom) #tidy model outputs
 library(photobiology) #photobiology::w_length2rgb
 library(kableExtra)
 
@@ -52,6 +54,8 @@ DataInOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2
 
 DataOutOneDrive <- paste("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/", LabDay, "_StudentData", sep = "")
 
+
+
 file_id <- ".txt"
 
 FileEncodeMD <- "UTF-16LE" 
@@ -63,17 +67,17 @@ ExEm_files <- list.files(path = DataInOneDrive, pattern = file_id, full.names = 
 
 #Import from local OneDrive path does not work from Posit.cloud.  Need to move data files to git tracked project, push to GitHub, pull into Posit.cloud
 #List files stored on GitHub
-#ExEm_files <- list.files(path = file.path("RawData", "TUES_GrowthData"), pattern = file_id, full.names = TRUE)
+ExEm_files <- list.files(path = file.path("RawData", "TUES_GrowthData"), pattern = file_id, full.names = TRUE)
 
 ExEm_files
 #test for duplicate file names in chl_files
 unique(duplicated(ExEm_files))
 
-MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
+#MetaData <- readxl::read_excel(file.path("~/OneDrive - Mount Allison University/BIOL2201_2024/WI2024Labs/LAB3_MicroGrowth/WellPlateMetaData.xlsx"), sheet = LabDay)
 
 #Local OneDrive MetaData path does not work on Posit.cloud
 #MetaData, moved from OneDrive to git tracked project, to github, update with 'pull' from GitHub
-#MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabDay)
+MetaData <- readxl::read_excel(file.path("WellPlateMetaData.xlsx"), sheet = LabDay)
 
 ```
 
@@ -97,18 +101,18 @@ ExEm_data <- ExEm_files |>
 ```
 
 ```{r tidy ExEm_data}
-ExEm_data2 <- ExEm_data |>
-  select(-c("Temperature(¡C)", "...27")) |>
-  separate(Filename, into = c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
- select(-c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11",  "txt")) |>
-  rename(MeasurePt = `...1`)
-
-#Alternate tidy when running on Posit.cloud with GitHub RawData
 # ExEm_data2 <- ExEm_data |>
 #   select(-c("Temperature(¡C)", "...27")) |>
-#   separate(Filename, into = c("Path1", "Path2", "Path3", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
-#  select(-c("Path1", "Path2", "Path3", "txt")) |>
+#   separate(Filename, into = c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+#  select(-c("Path1", "Path2","Path3", "Path4", "Path5", "Path6", "Path7", "Path8","Path9", "Path10", "Path11",  "txt")) |>
 #   rename(MeasurePt = `...1`)
+
+#Alternate tidy when running on Posit.cloud with GitHub RawData
+ExEm_data2 <- ExEm_data |>
+  select(-c("Temperature(¡C)", "...27")) |>
+  separate(Filename, into = c("Path1", "Path2", "Path3", "YYYYMMDD", "HHMM","DAY", "LIGHT", "txt"), sep = "([\\/\\_\\.])", remove = FALSE) |>
+ select(-c("Path1", "Path2", "Path3", "txt")) |>
+  rename(MeasurePt = `...1`)
 
 #smarter way to code this I am sure
  ExEm_data3 <-  ExEm_data2 |>
@@ -144,7 +148,7 @@ ExEm_mean <- ExEm_data3 %>%
 
 ```
 
-Export wide format OD_data to OneDrive for Excel Analyses With Just 'HIGH' and 'LOW' plates for each DAY by re-running script.
+Export wide format OD_data to OneDrive for Excel Analyses With Just 'HIGH' and 'LOW' plates for each DAY in separate folders, may export data for each DAY simply by re-running script.
 
 ```{r export DAY csv}
 
@@ -190,15 +194,15 @@ Need DAY, LIGHT, WELL in both MetaData and File data
 
 ```{r merge with MetaData}
 ExEm_meta <- left_join(ExEm_long, MetaData, by = join_by(DAY, LIGHT, WELL)) |>
-  filter(!is.na(SAMPLE)) |>
-  filter(Fluor >= 0,
-         Fluor <= 1000) #hack fix to remove bad points from 620 nm Ex, 20 h
-  
+  filter(!is.na(SAMPLE))
+
 ```
 
 ```{r test plot}
 ExEm_meta |>
   filter(Ex_nm == 440) |>
+  filter(Fluor >= 0,
+         Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
   #scale_colour_manual(values = ExNM) +
@@ -207,6 +211,8 @@ ExEm_meta |>
   theme_bw()
 
 ExEm_meta |>
+   filter(Fluor >= 0,
+          Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = LIGHT)) +
   #scale_colour_manual(values = ExNM) +
@@ -217,12 +223,14 @@ ExEm_meta |>
 
 ```{r save ExEm_meta, echo=FALSE}
 
-ExEm_meta |>
-  saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
+# ExEm_meta |>
+#   filter(Fluor >= 0,
+#          Fluor <= 500) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+#   saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
-#<https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r>
+\#<https://stackoverflow.com/questions/72906809/read-and-write-excel-and-csv-files-from-sharepoint-via-r>
 
 ```{r export OD600.csv to shared OneDrive folder}
 #OD600Meta |>
@@ -233,5 +241,76 @@ ExEm_meta |>
   # unite("Group_Bench", Group, Bench, sep = "_") |>
   # nest(.by = c(Group_Bench)) |>
   # {walk2(.x = .$data, .y = .$Group_Bench, ~ write_csv(.x, file = file.path("..", "..", "..", "..", DataOneDrive, str_c(.y, ".csv"))))}
+
+```
+
+Implement MultiSpectral Analyses and Growth Curve fits well by well.
+Define equations as functions.
+x will be taken from 'E_days' when we run the fit.
+
+```{r logistic_eqn}
+LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
+}
+
+#ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
+
+possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
+```
+
+Fit treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each nest on the fly.
+This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
+
+```{r growth fits}
+ExEm_nest <- ExEm_meta |>
+  filter(Fluor >= 0,
+         Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+  nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
+
+ExEm_nest <- ExEm_nest|> 
+  mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+                                         data = .x,
+                                         start = list(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE))
+                                         )
+  ),
+  PredictLog = map(FitLog, augment),
+  TidiedLog = map(FitLog, tidy),
+  ParamLog = map(FitLog, glance)
+  )
+
+ExEm_nest |>
+  unnest(PredictLog) |>
+  ggplot() + 
+  geom_point(aes(x = E_hours, y = Fluor, colour = as.factor(Ex_nm))) + 
+  geom_line(aes(x = E_hours, y = `.fitted`, colour = as.factor(Ex_nm))) +
+  geom_point(aes(x = E_hours, y =  `.resid`), size = 0.1) +
+  scale_colour_manual(values = ExNM) +
+  facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
+  theme_bw()
+
+kable(ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)), digits = 2)
+
+ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  ggplot() +
+  geom_point(aes(x = Ex_nm, y = estimate_Mu, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
+  theme_bw()
+
+ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  ggplot() +
+  geom_point(aes(x = Ex_nm, y = estimate_Pmax, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
+  theme_bw()
 
 ```
