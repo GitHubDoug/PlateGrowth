@@ -1,5 +1,5 @@
 ---
-title: "Import microbial plate growth data"
+title: "Fit Microbial Growth Curves Using Microbial WellPlate Data"
 author: "Maximilian Berthold, Douglas A. Campbell"
 date: "`r format(Sys.Date())`"
 output:
@@ -11,12 +11,23 @@ editor_options:
     wrap: sentence
 ---
 
+Enter Your Name
+```{r enter name}
+LastName <- "Campbell"
+FirstName <- "Douglas"
+
+LastName_FirstName <- paste(LastName, FirstName, sep = "_")
+```
+
+# Report by `r LastName_FirstName`
+
 # Introduction
 This .Rmd uses an imported .Rds containing tidied data from Molecular Device Fluorescence well plate files, generated using multiple excitation/emission wavelength pairs, along with MetaData imported from an .xlsx file.
 
 It fits logistic growth curves to data grouped by SAMPLE (taxa) and LIGHT.
 
-## Materials & Methods
+
+# Materials & Methods
 
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
 # libraries; Note check actual dependencies
@@ -30,6 +41,7 @@ library(kableExtra)
 
 
 ```{r variable names for processing}
+
 Project <- "BIOL2201"
 LabDay <- "TUES"
 
@@ -93,6 +105,7 @@ ExEm_meta |>
   labs(title = LabDay) +
   theme_bw()
 ```
+
 # Results
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 
@@ -218,3 +231,4 @@ ExEm_nest |>
 
 ```
 
+# Discussion
