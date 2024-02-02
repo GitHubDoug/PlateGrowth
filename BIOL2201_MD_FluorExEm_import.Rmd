@@ -32,10 +32,6 @@ Em <- 680
 
 Ex <- c(440, 520, 620)
 
-#Add colour coding vector
-ExNM = (photobiology::w_length2rgb(Ex))
-names(ExNM) <- Ex
-
 ```
 
 ```{r set variables for file import, export}
