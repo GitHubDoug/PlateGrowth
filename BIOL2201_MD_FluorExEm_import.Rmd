@@ -210,8 +210,14 @@ ExEm_meta |>
 
 ```{r save ExEm_meta, echo=FALSE}
 
+#Save to OneDrive
 ExEm_meta |>
   saveRDS(file.path(DataOutOneDrive, paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
+
+#Save to ~/Documents/GitHub/DougTeach/PlateGrowth/StudentData
+#to support git tracking, push to GitHub, pull to Posit.cloud
+ExEm_meta |>
+  saveRDS(file.path("~/Documents/GitHub/DougTeach/PlateGrowth/StudentData/", paste(Project, LabDay, "ExEm_meta.Rds", sep = "_"), fsep = .Platform$file.sep))
 
 ```
 
