@@ -19,6 +19,12 @@ FirstName <- "Douglas"
 LastName_FirstName <- paste(LastName, FirstName, sep = "_")
 ```
 
+Enter your LabDay
+```{r enter LabDay}
+#TUES, WED, THURS, FRI
+LabDay <- "TUES"
+```
+
 # Report by `r LastName_FirstName`
 
 # Introduction
@@ -43,7 +49,6 @@ library(kableExtra)
 ```{r variable names for processing}
 
 Project <- "BIOL2201"
-LabDay <- "TUES"
 
 #File Ex Em nm settings lost from files during import b/c of Header structure, added back during tidying.
 
