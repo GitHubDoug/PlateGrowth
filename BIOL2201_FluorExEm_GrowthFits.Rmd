@@ -32,7 +32,6 @@ This .Rmd uses an imported .Rds containing tidied data from Molecular Device Flu
 
 It fits logistic growth curves to data grouped by SAMPLE (taxa) and LIGHT.
 
-
 # Materials & Methods
 
 ```{r load libraries, echo=FALSE, message = FALSE, warning = FALSE}
@@ -40,8 +39,6 @@ It fits logistic growth curves to data grouped by SAMPLE (taxa) and LIGHT.
 library(tidyverse) #core tidyverse packages
 library(minpack.lm) #curve fitting
 library(broom) #tidy model outputs
-library(photobiology) #photobiology::w_length2rgb
-library(kableExtra)
 
 ```
 
@@ -58,11 +55,10 @@ Ex <- c(440, 520, 620)
 #Add colour coding vector
 ExNM = (photobiology::w_length2rgb(Ex))
 names(ExNM) <- Ex
-
 ```
 
 
-```{r set variables for file import, export}
+```{r list files for import}
 
 file_id = ".Rds"  #set value to search for file type
 
@@ -84,7 +80,7 @@ ExEm_meta_files
 
 ```
 
-## Read in Fluorescence data and MetaData tidied and combined in another script
+## Read in Fluorescence data and MetaData, tidied and combined from data files, in another script
 ```{r read ExEm_meta file, error = FALSE, message = FALSE, warning = FALSE}
 
 ExEm_meta <-readRDS(file = paste("StudentData/BIOL2201_", LabDay, "_ExEm_meta.Rds", sep = ""))
@@ -94,10 +90,9 @@ ExEm_meta <-readRDS(file = paste("StudentData/BIOL2201_", LabDay, "_ExEm_meta.Rd
 
 ```{r test plot}
 ExEm_meta |>
-  filter(Ex_nm == 440) |>
+  filter(Ex_nm == Ex[1]) |>
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = INITIAL)) +
-  #scale_colour_manual(values = ExNM) +
   facet_grid(rows = vars(SAMPLE), cols = vars(LIGHT)) +
   labs(title = LabDay, subtitle = paste(Ex[1], "_nm"))+
   theme_bw()
@@ -105,7 +100,6 @@ ExEm_meta |>
 ExEm_meta |>
   ggplot() +
   geom_point(aes(x = E_hours, y = Fluor, colour = LIGHT)) +
-  #scale_colour_manual(values = ExNM) +
   facet_grid(rows = vars(SAMPLE), cols = vars(Ex_nm)) +
   labs(title = LabDay) +
   theme_bw()
@@ -114,12 +108,22 @@ ExEm_meta |>
 # Results
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 
-Define fitting logistic equation as function for R.
+Define fitting logistic equations as functions for R.
 
-```{r logistic_eqn}
+```{r logistic_eqns}
 #x will be taken from 'E_hours' when we run the fit.
-LogisticEqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
+logistic_eqn <-  function(x, Pmax, Mu, Intercept){(Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))
 }
+
+TestX = c(0:200)
+
+plot(x = TestX,  y = logistic_eqn(x = TestX, Intercept = 10, Pmax = 100, Mu = 0.05))
+
+#logistic_eqn with additional D 'death' parameter
+logisticdeath_eqn <- function(x, Pmax, Mu, Intercept, D){((Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))) - (x * D)
+}
+ 
+plot(x = TestX,  y = logisticdeath_eqn(x = TestX, Intercept = 10, Pmax = 100, Mu = 0.05, D = 0.05))
 
 #ModGompertzEqn <- function(x, Gmax,Gmu,Lag){(Gmax*(exp(-exp((Gmu*exp(1))/Gmax*(Lag-x)+1))))}
 
@@ -129,14 +133,15 @@ possibnlSLM = possibly(.f = nlsLM, otherwise = NULL)
 Fit Sample & Treatment specific logistic growth trajectories using nest purrr:map & broom::augment using nest specific start, lower & upper settings extracted from each data nest on the fly.
 This may be necessary if the 'nests' contain diverse data patterns that fail to fit with generic start, lower & upper parameters extracted from the entire dataset
 
-```{r growth fits}
+https://r4ds.hadley.nz/
+```{r logistic growth fits}
 ExEm_nest <- ExEm_meta |>
   filter(Fluor >= 0,
          Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
 
 ExEm_nest <- ExEm_nest|> 
-  mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ LogisticEqn(x = E_hours, Intercept, Mu, Pmax),
+  mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ logistic_eqn(x = E_hours, Intercept, Mu, Pmax),
                                          data = .x,
                                          start = list(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE))
                                          )
@@ -149,7 +154,7 @@ ExEm_nest <- ExEm_nest|>
 
 ## Plotting Growth and Growth Parameters Across Strains (Samples) and Growth Light `r LabDay`
 
-```{r plot growth parameters}
+```{r plot data and logistic model fits}
 ExEm_nest |>
   unnest(PredictLog) |>
   ggplot() + 
@@ -160,6 +165,11 @@ ExEm_nest |>
   facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
   labs(title = LabDay) +
   theme_bw()
+
+```
+
+
+```{r plot logistic growth parameters}
 
 ExEm_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
@@ -222,18 +232,111 @@ ExEm_nest |>
          Pmax = estimate_Pmax) |>
   mutate(across(where(is.numeric), \(x) round(x, 1)))
 
-# kable(ExEm_nest |> 
-#   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
-#   unnest(TidiedLog) |>
-#   select(-statistic) |>
-#   pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
-#   rename(Intercept = estimate_Intercept,
-#          mu = estimate_Mu,
-#          Pmax = estimate_Pmax) |>
-#   mutate(across(where(is.numeric), round, 1)),
-#   digits = 1,
-#   caption = paste(LabDay, "Logistic Growth Parameters", sep = " "))
+
+```
+
+## Plot growth parameters that pass quality filter
+```{r plot quality-filter growth parameters}
+
+FilterFactor <- 2
+
+ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  filter(std.error_Mu < FilterFactor * estimate_Mu) |>
+  ggplot() +
+  geom_point(aes(x = Ex_nm, y = estimate_Mu, colour = LIGHT)) +
+  geom_errorbar(aes(x = Ex_nm, ymin = estimate_Mu - std.error_Mu, ymax = estimate_Mu + std.error_Mu, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
+  labs(title = LabDay) + 
+  theme_bw()
+
+
+ExEm_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-statistic) |>
+  pivot_wider(names_from = term, values_from = c(estimate:p.value)) |>
+  filter(std.error_Mu < FilterFactor * estimate_Mu) |>
+  ggplot() +
+  geom_point(aes(x = Ex_nm, y = estimate_Pmax, colour = LIGHT)) +
+  geom_errorbar(aes(x = Ex_nm, ymin = estimate_Pmax - std.error_Pmax, ymax = estimate_Pmax + std.error_Pmax, colour = LIGHT)) +
+  facet_grid(rows = vars(SAMPLE)) +
+  labs(title = LabDay) + 
+  theme_bw()
+
+```
+
+## Fit data with logisticdeath model to account for death phase?
+```{r logistic death growth fits}
+ExEmDeath_nest <- ExEm_meta |>
+  filter(Fluor >= 0,
+         Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
+  nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
+
+ExEmDeath_nest <- ExEm_nest|> 
+  mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ logisticdeath_eqn(x = E_hours, Intercept, Mu, Pmax, D),
+                                         data = .x,
+                                         start = c(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE), D = 0.05),
+                                         lower = c(Intercept = 0, Mu = 0, Pmax = 2, D = 0)
+                                         )
+  ),
+  PredictLog = map(FitLog, augment),
+  TidiedLog = map(FitLog, tidy),
+  ParamLog = map(FitLog, glance)
+  )
+```
+
+
+```{r plot data and logistic death model fits}
+ExEmDeath_nest |>
+  unnest(PredictLog) |>
+  ggplot() + 
+  geom_point(aes(x = E_hours, y = Fluor, colour = as.factor(Ex_nm))) + 
+  geom_line(aes(x = E_hours, y = `.fitted`, colour = as.factor(Ex_nm))) +
+  geom_point(aes(x = E_hours, y =  `.resid`), size = 0.1) +
+  scale_colour_manual(values = ExNM) +
+  facet_grid(row = vars(SAMPLE), col = vars(LIGHT)) +
+  labs(title = LabDay) +
+  theme_bw()
+
+```
+
+## Table of Logistic Death Fit Parameters for `r LabDay`
+```{r logistic death fit parameters}
+
+ExEmDeath_nest |> 
+  dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
+  unnest(TidiedLog) |>
+  select(-c(p.value, statistic)) |>
+  pivot_wider(names_from = term, values_from = c(estimate:std.error)) |>
+  rename(Intercept = estimate_Intercept,
+         mu = estimate_Mu,
+         Pmax = estimate_Pmax,
+         Death = estimate_D) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
 
 ```
 
 # Discussion
+
+Discussion
+1) Were growth rates across the different species different?  
+
+2) Were growth rates different under HIGH vs. LOW light for each species?  
+
+3) Were growth rates the same, or different, for the different pigments, within a species?  
+
+	If the pigments show the same growth rates within a species, growth was 'balanced'; the level of each pigment increased at the same exponential (proportional) rate over time.  
+	
+	If the pigments show different growth rates  within a species, growth was 'imbalanced'; the level of the pigments is increasing at different rates, implying a change in cell composition over time.  
+	
+
+4) Does adding a Death parameter to the model better approximate your data?  
+
+
+Save the file.  
+
+'Knit' to 'html' to generate a formatted output file.
