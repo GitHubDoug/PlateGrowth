@@ -336,7 +336,21 @@ Discussion
 
 4) Does adding a Death parameter to the model better approximate your data?  
 
+Report:  
 
-Save the file.  
+Save this .Rmd file  
 
-'Knit' to 'html' to generate a formatted output file.
+'Knit' to 'html' to generate a formatted output file.  
+	Errors or code failures will halt the 'knit' output.
+	The output should appear in the 'Files' tab, and as a popup; you may need to disable popup blockers.
+
+Select the .html file from the 'Files' tab.  
+
+Under the Gear icon select 'Export'  
+
+Save the file.    
+
+Rename the file to include your LastNameFirstName  
+
+Submit the renamed .html to Moodle.
+
