@@ -105,6 +105,7 @@ ExEm_meta |>
   theme_bw()
 ```
 
+
 # Results
 Implement MultiSpectral Analyses and Growth Curve fits well by well.
 
@@ -271,16 +272,20 @@ ExEm_nest |>
 
 ## Fit data with logisticdeath model to account for death phase?
 ```{r logistic death growth fits}
+
+function(x, Pmax, Mu, Intercept, D){((Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))) - (x * D)
+}
+
+
 ExEmDeath_nest <- ExEm_meta |>
   filter(Fluor >= 0,
          Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
   nest(data = -c(DAY, LIGHT, Ex_nm, SAMPLE, PAR_uE, Temp_C))
 
-ExEmDeath_nest <- ExEm_nest|> 
+ExEmDeath_nest <- ExEmDeath_nest|> 
   mutate(FitLog = map(data, ~possibnlSLM(Fluor ~ logisticdeath_eqn(x = E_hours, Intercept, Mu, Pmax, D),
                                          data = .x,
-                                         start = c(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE), D = 0.05),
-                                         lower = c(Intercept = 0, Mu = 0, Pmax = 2, D = 0)
+                                         start = list(Intercept = min(.$Fluor, na.rm = TRUE), Mu = 0.1, Pmax = max(.$Fluor, na.rm = TRUE), D= 0.01)
                                          )
   ),
   PredictLog = map(FitLog, augment),
