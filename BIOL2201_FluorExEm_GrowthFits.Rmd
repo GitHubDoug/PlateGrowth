@@ -338,7 +338,6 @@ Discussion
 	
 	If the pigments show different growth rates  within a species, growth was 'imbalanced'; the level of the pigments is increasing at different rates, implying a change in cell composition over time.  
 	
-
 4) Does adding a Death parameter to the model better approximate your data?  
 
 Report:  
