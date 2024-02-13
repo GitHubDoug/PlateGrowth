@@ -273,10 +273,6 @@ ExEm_nest |>
 ## Fit data with logisticdeath model to account for death phase?
 ```{r logistic death growth fits}
 
-function(x, Pmax, Mu, Intercept, D){((Pmax*Intercept*exp(Mu*x))/(Pmax + (Intercept*(exp(Mu*x)-1)))) - (x * D)
-}
-
-
 ExEmDeath_nest <- ExEm_meta |>
   filter(Fluor >= 0,
          Fluor <= 1000) |> #hack fix to remove bad points from 620 nm Ex, 20 h)
@@ -292,6 +288,7 @@ ExEmDeath_nest <- ExEmDeath_nest|>
   TidiedLog = map(FitLog, tidy),
   ParamLog = map(FitLog, glance)
   )
+
 ```
 
 
@@ -311,6 +308,7 @@ ExEmDeath_nest |>
 
 ## Table of Logistic Death Fit Parameters for `r LabDay`
 ```{r logistic death fit parameters}
+
 
 ExEmDeath_nest |> 
   dplyr::select(-c(data, FitLog, PredictLog, ParamLog)) |>
